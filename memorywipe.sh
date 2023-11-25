@@ -59,35 +59,7 @@ list_partitions() {
   #This method can be used to print particular columns and devices instead of everything.
 }
 
-# Extraction - mtd devices using nanddump
-ins_nanddump() {
-  echo
-  echo "Checking for existing installation..."
-
-  app="nanddump"
-  chk_install "$app"
-  install_result=$?
-  #echo "Install result is: $install_result"
-
-  if [ $install_result -eq 0 ]; then
-    echo "nanddump...Check!"
-  else
-    echo "Installing mtd-utils..."
-    sudo apt-get install mtd-utils -y >/dev/null 2>&1 || {
-      echo "Error: Unable to install mtd-utils. Please install it manually."
-      exit 1
-    }
-  fi
-  #sudo -S <<(echo "$pass") apt install mtd-utils -y #If there ever comes a need to input sudo password automatically.
-  #nanddump -s /dev/sda7 --bb='dumpbad' -p -n -c
-  #echo
-}
-
-# Sanitization - devices with ATA SECURE ERASE enabled using hdparm
-#ata_hdparm() {
-#
-#}
-
+### --- Cryptographic wipe starts here ---
 # Installing veracrypt
 ins_veracrypt() {
   app="veracrypt"
@@ -98,9 +70,9 @@ ins_veracrypt() {
   install_result=$?
 
   if [ $install_result -eq 0 ]; then
-    echo "Veracrypt...Check!"
+    echo "Check complete..."
   else
-    echo "Installing Veracrypt..."
+    echo "Installing VeraCrypt..."
     sudo wget https://launchpad.net/veracrypt/trunk/1.26.7/+download/veracrypt-console-1.26.7-Debian-11-armhf.deb --connect-timeout=5 -c -P ./veracrypt >/dev/null 2>&1 && sudo apt install ./veracrypt/veracrypt-console-1.26.7-Debian-11-armhf.deb -y >/dev/null 2>&1
 
     echo "Checking for successful installation"
@@ -108,17 +80,14 @@ ins_veracrypt() {
     chk_install "$app"
     install_result=$?
     if [ $install_result -eq 0 ]; then
-      echo "Veracrypt...Check!"
+      echo "Check complete..."
     else
-      echo "Veracrypt installation failed!! Install manually."
+      echo "VeraCrypt installation failed!! Install manually."
       echo
-      echo "Note: "
-      echo
-
-      echo "If it did not work for you, change the version and architecture according to your device and os..."
-      echo
-      echo "For example, raspberry pi uses armhf architecture. So, the required command is:"
-      echo "sudo wget https://launchpad.net/veracrypt/trunk/1.26.7/+download/veracrypt-console-1.26.7-Debian-11-armhf.deb --connect-timeout=5 -c -P ./veracrypt && sudo apt install ./veracrypt/veracrypt-console-1.26.7-Debian-11-armhf.deb -y"
+      echo "NOTE: If it did not work for you, change the version and architecture according to your device and os..."
+      echo "For example, raspberry pi uses armhf architecture. So, the change amd64 to armhf command is:"
+      echo "sudo wget https://launchpad.net/veracrypt/trunk/1.26.7/+download/veracrypt-console-1.26.7-Debian-11-amd64.deb --connect-timeout=5 -c -P ./veracrypt && sudo apt install ./veracrypt/veracrypt-console-1.26.7-Debian-11-amd64.deb -y"
+      exit
     fi
   fi
   #sudo -S <<(echo "pass")>> wget https://launchpad.net/veracrypt/trunk/1.26.7/+download/veracrypt-1.26.7-setup.tar.bz2 --connect-timeout=5 -c -P ./veracrypt/ && sudo -S <<(echo "pass")>> tar xjf ./veracrypt/veracrypt* -C ./veracrypt
@@ -188,16 +157,17 @@ veracrypt_encrypt() {
 wipe_disk() {
   echo "Wiping $partition..."
   if chk_unmount; then
-    sudo dd if=/dev/random of=$partition bs=1M status=progress > /dev/null 2>&1
+    sudo dd if=/dev/random of=$partition bs=1M status=progress
     #sudo dd if=/dev/random of=$partition bs=1M status=progress > /dev/null 2>&1
-    sudo dd if=/dev/zero of=$partition bs=1M status=progress > /dev/null 2>&1
+    sudo dd if=/dev/zero of=$partition bs=1M status=progress
     echo "$partition overwritten with one write each of random data and zeroes"
     read -p "Set device name: " name
-    sudo mkfs.ntfs -L $name $partition > /dev/null 2>&1 #Should automate to allow partitioning into different filesystems
+    sudo mkfs.ntfs -L $name $partition #Should automate to allow partitioning into different filesystems
     echo "Wiped $partition"
     return 0
   else
-    echo "Make sure the disk is unmounted!"
+    echo
+    echo "Wipe failed! Make sure the disk is unmounted!"
     return 1
   fi
 }
@@ -211,22 +181,24 @@ mount_disk() {
   echo "Finished mounting!"
 }
 
-# Sanitization - Cryptographic wipe, works on any device that supports encryption tools (Veracrypt - most compatible)
+# Sanitization - Cryptographic wipe, works on any device that supports encryption tools (VeraCrypt - most compatible)
 crypt_wipe() {
-  echo "Starting Cryptographic Wipe using Veracrypt..."
-  ins_veracrypt
+  echo "Starting Cryptographic Wipe using VeraCrypt..."
+  echo
+  ins_veracrypt #Script should not proceed if this step fails.
   echo
 
   echo "WARNING: This process is irreversible. Create necessary backups if required (You may use the extraction module for this)."
   echo
   echo "NOTE: Cryptographic Wipe on Flash Storage partitions may not be effective. Perform it on the whole disk."
   echo "If there are multiple partitions in the device, format them into one single partition, and then wipe it."
+  echo
   list_partitions
 
   # Setting a value for partition (/dev/sdb1) to wipe
   echo
-  echo "Select /dev/sdb, if you want to wipe the whole drive, partitioned as sdb1, sdb2, ..., sdb#"
-  read -p "Enter your device's partition (/dev/sdb1): " partition
+  echo "Select /dev/sda, if you want to wipe the whole drive, partitioned as sda1, sda2, ..., sdaN"
+  read -p "Enter your device's partition (/dev/sda1): " partition
   echo
   
   # Making sure disk is unmounted
@@ -238,15 +210,65 @@ crypt_wipe() {
     return 1
   fi
   
-  # Start veracrypt encryption (manual or automatic)
+  # Start the process
   veracrypt_encrypt
   echo
-  
   wipe_disk
   echo
   mount_disk 
-  
+  echo
   echo "Cryptographic Wipe procedure completed successfully!"
+}
+### --- Cryptographic Wipe ends here ---
+
+### ---ATA Secure Erase starts here ---
+# Installing hdparm
+ins_hdparm() {
+  app="hdparm"
+  echo
+  echo "Checking existing installation for $app" 
+  chk_install "$app"
+  install_result=$?
+  
+  if [ $install_result -eq 0 ]; then
+    echo "$app...Check!"
+  else
+    echo "Installing $app..."
+    sudo apt-get install $app -y >/dev/null 2>&1 || {
+      echo "Error: Unable to install $app. Please install it manually."
+      exit 1
+    }
+  fi
+}
+
+# Sanitization - devices with ATA SECURE ERASE enabled using hdparm
+ata_hdparm() {
+  ins_hdparm
+  #Check sudo hdparm -I $partition | grep SANITIZE to find if it is supported
+}
+### --- ATA Secure Erase ends here ---
+
+# Extraction - mtd devices using nanddump
+ins_nanddump() {
+  app="nanddump" 
+  echo
+  echo "Checking existing installation for $app..."
+  chk_install "$app"
+  install_result=$?
+  #echo "Install result is: $install_result"
+
+  if [ $install_result -eq 0 ]; then
+    echo "$app...Check!"
+  else
+    echo "Installing mtd-utils..."
+    sudo apt-get install mtd-utils -y >/dev/null 2>&1 || {
+      echo "Error: Unable to install mtd-utils. Please install it manually."
+      exit 1
+    }
+  fi
+  #sudo -S <<(echo "$pass") apt install mtd-utils -y #If there ever comes a need to input sudo password automatically.
+  #nanddump -s /dev/sda7 --bb='dumpbad' -p -n -c
+  #echo
 }
 
 main() {
