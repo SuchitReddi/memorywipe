@@ -6,8 +6,6 @@
 #read -p "Enter the application name: " app #If you want to take the user input
 chk_install() {
   local command_name="$1"
-
-  # Check if the command is already installed
   if command -v "$command_name" >/dev/null 2>&1; then
     echo "$command_name is installed."
     return 0
@@ -16,7 +14,7 @@ chk_install() {
     return 1
   fi
 
-  #Using in other functions:
+  #Usage in other functions:
   #Define required variables first. Then run chk_install. Finally check the result.
   # app="tool name"
   # chk_install "$app"
@@ -28,7 +26,7 @@ chk_install() {
   #	#Installation code here
 }
 
-# Check partition
+# Check partitions
 list_partitions() {
   valid_input=false
   while true; do
@@ -126,14 +124,13 @@ ins_veracrypt() {
   #sudo -S <<(echo "pass")>> wget https://launchpad.net/veracrypt/trunk/1.26.7/+download/veracrypt-1.26.7-setup.tar.bz2 --connect-timeout=5 -c -P ./veracrypt/ && sudo -S <<(echo "pass")>> tar xjf ./veracrypt/veracrypt* -C ./veracrypt
 }
 
+# Checks if the partition is unmounted
 chk_unmount() {
   #ISSUE: If the target partition /dev/sda1 is already unmounted, and the user gives sda1 as input, it does not work as intended.
   #sda1 will not be found in the /proc/mounts, so it says successfully unmounted, but sda1 is not even a block device.
   #read -p "Enter your device's partition (/dev/sdb1): " partition
   echo "Unmounting the partition..."
-  #sudo umount $partition
 
-  # Check if the partition is unmounted
   if grep -qs "$partition" /proc/mounts; then
     sudo umount $partition
     if grep -qs "$partition" /proc/mounts; then
@@ -149,6 +146,7 @@ chk_unmount() {
   fi
 }
 
+# Check if partition is already encrypted by veracrypt (to prevent wasting time unless needed)
 chk_encrypted() {
   command=$(lsblk -f $partition)
   # Check if there is a partition with the name "veracrypt"
@@ -159,6 +157,7 @@ chk_encrypted() {
   fi
 }
 
+# Actual encryption process using veracrypt
 veracrypt_encrypt() {
   if chk_encrypted; then
     echo "Selected partition is already encrypted! Skipping encryption..."
@@ -173,10 +172,11 @@ veracrypt_encrypt() {
           echo "Uses AES, with SHA-512 and makes an NTFS filesystem"
 	  echo
 	  echo "Enter strong password for encrypting. (You don't have to remember it)"
-	  read -p "So set a very strong random password: " strongp
+	  read -p "So set a random password with special characters: " strongp
 	  sudo veracrypt -t -c --volume-type=normal $partition --encryption=aes --hash=sha-512 --filesystem=ntfs -p $strongp --pim=0 -k "" --random-source=/dev/urandom
-	  sudo veracrypt -t $partition /mnt/ -p $strongp --pim=0 -k "" --protect-hidden=no
-	  sudo veracrypt -d $partition #Unmount the veracrypt volume
+    echo "Finished encrypting $partition"
+	  #sudo veracrypt -t $partition /media/ -p $strongp --pim=0 -k "" --protect-hidden=no #To mount the veracrypt volume
+	  #sudo veracrypt -d $partition #Unmount the veracrypt volume
       else
 	echo "Invalid input. Please give either 'm' or 'a'" 
       fi
@@ -184,12 +184,17 @@ veracrypt_encrypt() {
   fi
 }
 
-format_disk() {
-  echo "Formatting $partition..."
+# Wipes the disk
+wipe_disk() {
+  echo "Wiping $partition..."
   if chk_unmount; then
+    sudo dd if=/dev/random of=$partition bs=1M status=progress > /dev/null 2>&1
+    #sudo dd if=/dev/random of=$partition bs=1M status=progress > /dev/null 2>&1
+    sudo dd if=/dev/zero of=$partition bs=1M status=progress > /dev/null 2>&1
+    echo "$partition overwritten with one write each of random data and zeroes"
     read -p "Set device name: " name
-    sudo mkfs.ntfs -L $name $partition
-    echo "Formatted $partition"
+    sudo mkfs.ntfs -L $name $partition > /dev/null 2>&1 #Should automate to allow partitioning into different filesystems
+    echo "Wiped $partition"
     return 0
   else
     echo "Make sure the disk is unmounted!"
@@ -197,29 +202,34 @@ format_disk() {
   fi
 }
 
+# Mounts disk at /media/$name
 mount_disk() {
-  echo "Mounting $partition at /mnt/$name"
-  sudo mkdir /mnt/$name > /dev/null 2>&1
-  sudo mount $partition /mnt/$name/
+  #read -p "Set mounting folder name: " name
+  echo "Mounting $partition at /media/$name"
+  sudo mkdir /media/$name > /dev/null 2>&1
+  sudo mount $partition /media/$name/
   echo "Finished mounting!"
 }
 
-# Sanitization - any device that supports encryption tools (Veracrypt - most compatible)
-crypt_erase() {
-  echo "Starting Cryptographic Erasure using Veracrypt..."
+# Sanitization - Cryptographic wipe, works on any device that supports encryption tools (Veracrypt - most compatible)
+crypt_wipe() {
+  echo "Starting Cryptographic Wipe using Veracrypt..."
   ins_veracrypt
   echo
 
   echo "WARNING: This process is irreversible. Create necessary backups if required (You may use the extraction module for this)."
   echo
-  echo "NOTE: Cryptographic erasure on Flash Storage partitions may not be effective. Perform it on the whole disk."
-  echo "If there are multiple partitions in the device, format them into one single partition, and then perform erasure."
+  echo "NOTE: Cryptographic Wipe on Flash Storage partitions may not be effective. Perform it on the whole disk."
+  echo "If there are multiple partitions in the device, format them into one single partition, and then wipe it."
   list_partitions
 
-  #Setting a value for partition (/dev/sdb1) to erase
+  # Setting a value for partition (/dev/sdb1) to wipe
   echo
-  echo "Select /dev/sdb, if you want to erase the whole drive, partitioned as sdb1, sdb2, ..., sdb#"
+  echo "Select /dev/sdb, if you want to wipe the whole drive, partitioned as sdb1, sdb2, ..., sdb#"
   read -p "Enter your device's partition (/dev/sdb1): " partition
+  echo
+  
+  # Making sure disk is unmounted
   if chk_unmount; then
     echo
   else
@@ -231,13 +241,12 @@ crypt_erase() {
   # Start veracrypt encryption (manual or automatic)
   veracrypt_encrypt
   echo
-  echo "Finished encrypting $partition"
   
-  format_disk
+  wipe_disk
   echo
   mount_disk 
   
-  echo "Cryptographic Erasure procedure completed successfully!"
+  echo "Cryptographic Wipe procedure completed successfully!"
 }
 
 main() {
@@ -254,7 +263,7 @@ main() {
     echo "You selected Wiping"
     # Code for option 1
     echo "Available Methods: "
-    echo "[1] Cryptographic Erasure"
+    echo "[1] Cryptographic Wipe"
     echo "[2] ATA Secure Erase (hdparm)"
     echo "[3] Diskpart"
 
@@ -262,9 +271,9 @@ main() {
     echo
     case $wipe in
     1)
-      echo "You selected Cryptographic Erasure"
+      echo "You selected Cryptographic Wipe"
       # Code for option 1
-      crypt_erase
+      crypt_wipe
       ;;
     2)
       echo "You selected ATA Secure Erase using hdparm"
