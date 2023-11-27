@@ -155,19 +155,20 @@ veracrypt_encrypt() {
 
 # Wipes the disk
 wipe_disk() {
-  echo "Wiping $partition..."
+  echo "Wiping $partition."
   if chk_unmount; then
     sudo dd if=/dev/random of=$partition bs=1M status=progress
-    #sudo dd if=/dev/random of=$partition bs=1M status=progress > /dev/null 2>&1
+    #sudo dd if=/dev/random of=$partition bs=1M status=progress > /dev/null 2>&1 #To suppress stdout
     sudo dd if=/dev/zero of=$partition bs=1M status=progress
+    echo
+    
     echo "$partition overwritten with one write each of random data and zeroes"
     read -p "Set device name: " name
     sudo mkfs.ntfs -L $name $partition #Should automate to allow partitioning into different filesystems
     echo "Wiped $partition"
     return 0
   else
-    echo
-    echo "Wipe failed! Make sure the disk is unmounted!"
+    echo "Make sure the disk is unmounted!"
     return 1
   fi
 }
@@ -241,12 +242,149 @@ ins_hdparm() {
   fi
 }
 
+# Check if device is compatible with hdparm sanitize feature set
+chk_compat_hdparm(){
+	#Check (sudo hdparm -I $partition | grep -i sanitize) && (sudo hdparm -I $partition | grep -i "enhanced erase") to find multiple conditions
+	if !(sudo hdparm -I $partition | grep -i "sanitize feature"); then
+		echo "Your device does not support sanitize feature set!"
+		echo
+		main
+	else
+		echo "Your device supports sanitize feature set!"
+	fi
+}
+
+# Check if drive is frozen
+chk_freeze(){
+	if (sudo hdparm -I $partition | grep -i frozen > /dev/null 2>&1) && (sudo hdparm -I $partition | grep -i frozen | grep -i not); then
+		echo "Device is not frozen! Continuing to next step..."
+    else
+		echo "Device is frozen!" 
+		echo "A system suspend will suspend the device and start it after a minute unfrozen"
+		echo "YOUR DEVICE WILL TURN OFF FOR A FEW MINUTES IF YOU SELECT YES. DO NOT PANIC"
+		echo
+		read -p "Do you want to suspend your system?(y/n)[n]: " suspend
+		if [ "$suspend" = "y" ]; then
+		  sudo systemctl suspend
+		else
+		  if [ "$suspend" = "n" ] || [ -z "$suspend" ]; then #adding -z part made null input default to "n".
+			echo  "You can't continue with this process without suspending... Exiting"
+			exit 1
+		  else
+			echo "Invalid input. Please give either 'y' or 'n'" 
+		  fi
+		fi
+	fi
+}
+
+select_enhance() {
+  echo "Available actions: "
+  echo "[1] Enhanced Security Erase (Deletes data from bad blocks)"
+  echo "[2] Security Erase (Does not delete data from bad blocks)"
+  echo
+  read -p "Select your erase method: " erase
+	echo
+	case $erase in
+	1)
+	  echo "You selected Enhanced Security Erase"
+	  # Code for option 1
+	  echo "This mode writes predetermined data patterns set by the manufacturer to all areas including bad blocks"
+	  echo "Please wait... this may take a long time. Atleast:"
+	  sudo hdparm -I $partition | grep -i "erase unit"
+	  echo
+	  #sudo hdparm --user-master u --security-erase-enhanced $pass_hdparm $partition
+	  echo "Successfully finished Enhanced Security Erase!"
+	  ;;
+	2)
+	  echo "You selected Security Erase"
+	  # Code for option 2
+	  echo "This mode writes all user data excluding bad blocks with zeroes"
+	  echo "Please wait... this may take a long time. Atleast:"
+	  sudo hdparm -I $partition | grep -i "erase unit"
+	  echo
+	  #sudo hdparm --user-master u --security-erase $pass_hdparm $partition
+	  echo "Successfully finished Security Erase!"
+	  ;;
+	*)
+	  echo "Invalid option! Select from 1, 2."
+	  echo
+	  select_enhance
+	  ;;
+
+	esac
+}
+
 # Sanitization - devices with ATA SECURE ERASE enabled using hdparm
-ata_hdparm() {
+# https://code.mendhak.com/securely-wipe-ssd/
+ata_hdparm() { #Make sure to show the time it will take for secure erase using sudo hdparm -I $partition | grep -i "erase unit"
+  echo "Starting ATA Secure Erase..."
   ins_hdparm
-  #Check sudo hdparm -I $partition | grep SANITIZE to find if it is supported
+  echo
+  list_partitions
+  echo
+  
+  echo "Select /dev/sda, if you want to wipe the whole drive, partitioned as sda1, sda2, ..., sdaN"
+  read -p "Enter your device's partition (/dev/sda1): " partition
+  chk_compat_hdparm
+  echo
+  chk_freeze
+  echo
+  echo "The time taken for this process to finish will be:"
+  sudo hdparm -I $partition | grep -i "erase unit"
+  echo
+  
+  read -p "Set a password: " pass_hdparm
+  #sudo hdparm --user-master u --security-set-pass $pass_hdparm $partition
+  echo "Password set!"
+  echo
+  
+  select_enhance
+  echo
+  echo "ATA Secure Erase procedure successfully completed!"
 }
 ### --- ATA Secure Erase ends here ---
+
+### --- SATA Secure Erase starts here ---
+ins_sg3() {
+  app="sg3-utils" 
+  echo
+  echo "Checking existing installation for $app..."
+  chk_install "$app"
+  install_result=$?
+  #echo "Install result is: $install_result"
+
+  if [ $install_result -eq 0 ]; then
+    echo "$app...Check!"
+  else
+    echo "Installing $app..."
+    sudo apt-get install $app -y >/dev/null 2>&1 || {
+      echo "Error: Unable to install $app. Please install it manually."
+      exit 1
+    }
+  fi
+}
+### --- SATA Secure Erase ends here ---
+
+### --- NVMe Secure Erase starts here ---
+ins_nvme() {
+  app="nvme-cli" 
+  echo
+  echo "Checking existing installation for $app..."
+  chk_install "$app"
+  install_result=$?
+  #echo "Install result is: $install_result"
+
+  if [ $install_result -eq 0 ]; then
+    echo "$app...Check!"
+  else
+    echo "Installing $app..."
+    sudo apt-get install $app -y >/dev/null 2>&1 || {
+      echo "Error: Unable to install $app. Please install it manually."
+      exit 1
+    }
+  fi
+}
+### --- NVMe Secure Erase ends here ---
 
 # Extraction - mtd devices using nanddump
 ins_nanddump() {
@@ -272,7 +410,8 @@ ins_nanddump() {
 }
 
 main() {
-
+  
+  echo
   echo "Available actions: "
   echo "[1] Sanitization (Wiping)"
   echo "[2] Extraction (Imaging)"
@@ -284,11 +423,13 @@ main() {
   1)
     echo "You selected Wiping"
     # Code for option 1
-    echo "Available Methods: "
+    echo "Available Methods: [Default: 5]"
     echo "[1] Cryptographic Wipe"
-    echo "[2] ATA Secure Erase (hdparm)"
-    echo "[3] Diskpart"
-
+    echo "[2] ATA Secure Erase (hdparm)" #sudo hdparm --sanitize-status /dev/sda | grep -i not (should not appear)
+    echo "[3] SATA Secure Erase (sg-utils)" #sudo sg_sanitize -C -z -Q $partition | grep -i fail (should not appear)
+    echo "[4] NVMe Secure Erase (nvme-cli)" # sudo nvme id-ctrl /dev/nvme0 -H | grep -i invalid (should not appear) #sudo nvme id-ctrl /dev/nvme0 -H | grep "Format \|Crypto Erase\|Sanitize"
+    #https://wiki.archlinux.org/title/Solid_state_drive/Memory_cell_clearing
+    echo "[5] Automatic wipe (Executes the best compatible method)"
     read -p "Select your wiping method: " wipe
     echo
     case $wipe in
@@ -296,33 +437,126 @@ main() {
       echo "You selected Cryptographic Wipe"
       # Code for option 1
       crypt_wipe
+      echo
+      main
       ;;
     2)
       echo "You selected ATA Secure Erase using hdparm"
       # Code for option 2
+      ata_hdparm
+      echo
+      main
       ;;
     3)
-      echo "You selected diskpart"
+      echo "You selected SATA Secure Erase using sg3-utils"
       # Code for option 3
+      echo
+      echo "No SATA devices are availble for testing. Will be added soon..."
+      echo
+      main
       ;;
-
+    4)
+      echo "You selected NVMe Secure Erase using nvme-cli"
+      # Code for option 4
+      echo
+      echo "No NVMe devices are availble for testing. Will be added soon..."
+      echo
+      main
+      ;;
+    5)
+      echo "You selected Automatic Wipe"
+      echo "This method checks each method for its compatibility and executes the best method"
+      # Code for option 5
+      list_partitions
+      echo "If you want to wipe the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda"
+      read -p "Enter your device's partition (/dev/sda1): " partition
+      echo
+      echo "Trying ATA Secure Erase..."
+      ins_hdparm
+      echo
+	  if !(sudo hdparm -I $partition | grep -i "sanitize feature"); then
+		echo "ATA Secure Erase is not compatible for $partition. Trying SATA Secure Erase..."
+		echo
+	  else
+		echo "ATA Secure Erase is compatible for $partition!"
+		echo
+		ata_hdparm
+		echo
+		main
+	  fi
+	  
+	  ins_sg3
+	  echo
+	  if !(sudo sg_sanitize -C -z -Q $partition | grep -i fail); then
+		echo "SATA Secure Erase is not compatible for $partition. Trying NVMe Secure Erase..."
+		echo
+	  else
+		echo "SATA Secure Erase is compatible for $partition!"
+		echo
+		main
+	  fi
+	  
+	  ins_nvme
+	  echo
+	  if !(sudo nvme id-ctrl $partition -H | grep -i invalid); then
+		echo "NVMe Secure Erase is not compatible for $partition."
+		echo
+	  else
+		echo "NVMe Secure Erase is compatible for $partition!"
+		echo
+		main
+	  fi
+	  
+	  crypt_wipe
+	  echo
+      main
+      ;;
+    *)
+	  echo "Invalid option! Select from 1, 2, 3, 4, 5. Starting again..."
+	  echo
+	  main
+	  ;;
     esac
     ;;
   2)
     echo "You selected Extraction"
     # Code for option 2
-    ins_nanddump
+    echo "Select a partition to extract"
+    list_partitions
+	echo "If you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda"
+	read -p "Enter your device's partition (/dev/sda): " partition
+	if grep -qs "$partition" /proc/mounts; then
+		echo
+	else
+		echo
+		echo "Your partition does not exist. Enter correct partition. Starting again..."
+		echo
+		return 1
+	fi
+	read -p "Enter ouput location for the bin file (/<your location>/image.bin) :" loc
+	sudo dd if=$partition of=$loc bs=1M status=progress
+	echo "Image of $partition extracted to $loc successfully"
+	echo
+	main
+    #ins_nanddump
     ;;
   3)
     echo "You selected Verification"
     # Code for option 3
+    echo "Command line forensic verification tool is yet to be added..."
+    echo
     echo "Verification is done by checking for recoverable files. This can be done in many ways."
     echo "The one I know and use is Autopsy, an open source application used for Forensics by Investigators and Law Enforcement officials or curious minds."
     echo "It can recover files from disk images. Bin dumps are disk images which can be extracted using the available Imaging process."
     echo "The detailed process for verification is as follows:"
+    echo
+    echo "Work in Progress..."
+    echo
+    main
     ;;
   *)
     echo "Invalid option! Select from 1, 2, 3."
+    echo
     main
     ;;
   esac
