@@ -246,6 +246,17 @@ ins_hdparm() {
 chk_compat_hdparm(){
 	#Check (sudo hdparm -I $partition | grep -i sanitize) && (sudo hdparm -I $partition | grep -i "enhanced erase") to find multiple conditions
 	if !(sudo hdparm -I $partition | grep -i "sanitize feature"); then
+		echo "Your device does not support hdaparm set!"
+		echo
+		main
+	else
+		echo "Your device supports hdparm set!"
+	fi
+}
+
+# Check if device is sanitize feature set status
+chk_sanitize_status(){
+  if !(sudo hdparm --sanitize-status $partition | grep -i "sanitize feature" | grep -i not); then
 		echo "Your device does not support sanitize feature set!"
 		echo
 		main
@@ -281,6 +292,8 @@ select_enhance() {
   echo "Available actions: "
   echo "[1] Enhanced Security Erase (Deletes data from bad blocks)"
   echo "[2] Security Erase (Does not delete data from bad blocks)"
+  echo "[3] Sanitize Block Erase"
+  echo "[4] Sanitize Crypto Scramble (For Self-Encrypting SSDs)"
   echo
   read -p "Select your erase method: " erase
 	echo
@@ -305,8 +318,32 @@ select_enhance() {
 	  #sudo hdparm --user-master u --security-erase $pass_hdparm $partition
 	  echo "Successfully finished Security Erase!"
 	  ;;
+	3)
+	  echo "You selected Block Erase"
+	  # Code for option 2
+	  echo "This mode raises each block to a voltage higher that the standard program voltage (erase voltage), and drops it to ground, leaving no trace of previous signal"
+    echo
+    echo "Checking compatibility..."
+    chk_sanitize_status
+	  echo "Please wait... this may take a long time."
+    echo
+	  #sudo hdparm --yes-i-know-what-i-am-doing --sanitize-block-erase $partition
+	  echo "Successfully finished Block Erase!"
+	  ;;
+	4)
+	  echo "You selected Crypto Scramble Erase"
+	  # Code for option 2
+	  echo "This mode rotates the internal cryptographic key used in self-encrypting drives, potentially rendering data unreadable if the encryption algorithm is strong"
+    echo
+    echo "Checking compatibility..."
+    chk_sanitize_status
+	  echo "Please wait... this may take a long time."
+    echo
+	  #sudo hdparm --yes-i-know-what-i-am-doing --sanitize-crypto-scramble $partition
+	  echo "Successfully finished Security Erase!"
+	  ;;
 	*)
-	  echo "Invalid option! Select from 1, 2."
+	  echo "Invalid option! Select from 1, 2, 3 ,4."
 	  echo
 	  select_enhance
 	  ;;
@@ -356,7 +393,7 @@ ins_sg3() {
   if [ $install_result -eq 0 ]; then
     echo "$app...Check!"
   else
-    echo "Installing $app..."
+    echo "Installing $app..." #Installation package sg3-utils does not give output for sg3-utils -v resulting in failed chk_install
     sudo apt-get install $app -y >/dev/null 2>&1 || {
       echo "Error: Unable to install $app. Please install it manually."
       exit 1
@@ -370,7 +407,7 @@ ins_nvme() {
   app="nvme-cli" 
   echo
   echo "Checking existing installation for $app..."
-  chk_install "$app"
+  chk_install "$app" #Installation package nvme-cli does not give output for nvme-cli -v resulting in failed chk_install
   install_result=$?
   #echo "Install result is: $install_result"
 
@@ -427,8 +464,7 @@ main() {
     echo "[1] Cryptographic Wipe"
     echo "[2] ATA Secure Erase (hdparm)" #sudo hdparm --sanitize-status /dev/sda | grep -i not (should not appear)
     echo "[3] SATA Secure Erase (sg-utils)" #sudo sg_sanitize -C -z -Q $partition | grep -i fail (should not appear)
-    echo "[4] NVMe Secure Erase (nvme-cli)" # sudo nvme id-ctrl /dev/nvme0 -H | grep -i invalid (should not appear) #sudo nvme id-ctrl /dev/nvme0 -H | grep "Format \|Crypto Erase\|Sanitize"
-    #https://wiki.archlinux.org/title/Solid_state_drive/Memory_cell_clearing
+    echo "[4] NVMe Secure Erase (nvme-cli)" # sudo nvme id-ctrl /dev/nvme0 -H | grep -i invalid (should not appear) #sudo nvme id-ctrl /dev/nvme0 -H | grep "Format \|Crypto Erase\|Sanitize" #https://wiki.archlinux.org/title/Solid_state_drive/Memory_cell_clearing
     echo "[5] Automatic wipe (Executes the best compatible method)"
     read -p "Select your wiping method: " wipe
     echo
