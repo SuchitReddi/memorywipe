@@ -1,3 +1,5 @@
+<b>This README is for users, not developers! Developers should check CONTRIBUTING.md, and DEVELOPMENT.md.</b>  
+You can find the report and presentation of this project in "docs" folder.
 # Memory Wipe
 A linux command line utility for storage sanitization. Developed for IoT devices with shell access,
 keeping modern flash storages like SSDs in mind.
@@ -14,9 +16,6 @@ This tool can be used on any linux device. But it was mostly tested on a Raspber
   <li>Clone the repository: <code>git clone https://github.com/suchitreddi/memorywipe.git</code></li>
   <li>Run the script: <code>bash memorywipe.sh</code></li>
 </ol>
-
-<b>You can find the report and presentation of this project in "docs" folder</b><br>
-<b>This README is for users, not developers! Developers should check CONTRIBUTING.md.</b><br>
 
 ## Forensic Issues of IoT devices using NAND Flash Memory (Research)
 
@@ -63,7 +62,7 @@ or a custom FPGA board connected to the chip using a TSOP DIP48 adapter.<br>
 
 ## Disclaimer
 I am not responsible for any data lost intentionally or unintentionally. I have given necessary warnings.<br>
-It is solely the responsibility of the user, how the tool is utilized.<br>
+How the tool is utilized, is the sole responsiblity of the person(s) using this program.<br>
 
 ## Contact
 Suchit Reddi: <a href="mailto:suchit20016+memorywipe@gmail.com" target="_blank" rel="noopener noreferrer nofollow">suchit20016+memorywipe@gmail.com</a>
