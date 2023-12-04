@@ -66,4 +66,4 @@ I am not responsible for any data lost intentionally or unintentionally. I have 
 It is solely the responsibility of the user, how the tool is utilized.<br>
 
 ## Contact
-Suchit Reddi: <a href="mailto:suchit20016+memorywipe@gmail.com" target="_blank" rel="noopener noreferrer nofollow"><button>Mail</button></a>
+Suchit Reddi: <a href="mailto:suchit20016+memorywipe@gmail.com" target="_blank" rel="noopener noreferrer nofollow">suchit20016+memorywipe@gmail.com</a>

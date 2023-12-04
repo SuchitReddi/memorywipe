@@ -321,12 +321,12 @@ select_enhance() {
 	3)
 	  echo "You selected Block Erase"
 	  # Code for option 2
-	  echo "This mode raises each block to a voltage higher that the standard program voltage (erase voltage), and drops it to ground, leaving no trace of previous signal"
-    echo
-    echo "Checking compatibility..."
-    chk_sanitize_status
+	  echo "This mode raises each block to a voltage higher than the standard program voltage (erase voltage), and drops it to ground, leaving no trace of previous signal"
+	  echo
+	  echo "Checking compatibility..."
+	  chk_sanitize_status
 	  echo "Please wait... this may take a long time."
-    echo
+	  echo
 	  #sudo hdparm --yes-i-know-what-i-am-doing --sanitize-block-erase $partition
 	  echo "Successfully finished Block Erase!"
 	  ;;
@@ -334,11 +334,11 @@ select_enhance() {
 	  echo "You selected Crypto Scramble Erase"
 	  # Code for option 2
 	  echo "This mode rotates the internal cryptographic key used in self-encrypting drives, potentially rendering data unreadable if the encryption algorithm is strong"
-    echo
-    echo "Checking compatibility..."
-    chk_sanitize_status
+	  echo
+	  echo "Checking compatibility..."
+	  chk_sanitize_status
 	  echo "Please wait... this may take a long time."
-    echo
+	  echo
 	  #sudo hdparm --yes-i-know-what-i-am-doing --sanitize-crypto-scramble $partition
 	  echo "Successfully finished Security Erase!"
 	  ;;
@@ -464,7 +464,8 @@ main() {
     echo "[1] Cryptographic Wipe"
     echo "[2] ATA Secure Erase (hdparm)" #sudo hdparm --sanitize-status /dev/sda | grep -i not (should not appear)
     echo "[3] SATA Secure Erase (sg-utils)" #sudo sg_sanitize -C -z -Q $partition | grep -i fail (should not appear)
-    echo "[4] NVMe Secure Erase (nvme-cli)" # sudo nvme id-ctrl /dev/nvme0 -H | grep -i invalid (should not appear) #sudo nvme id-ctrl /dev/nvme0 -H | grep "Format \|Crypto Erase\|Sanitize" #https://wiki.archlinux.org/title/Solid_state_drive/Memory_cell_clearing
+    echo "[4] NVMe Secure Erase (nvme-cli)" # sudo nvme id-ctrl /dev/nvme0 -H | grep -i invalid (should not appear) #sudo nvme id-ctrl /dev/nvme0 -H | grep "Format \|Crypto Erase\|Sanitize"
+    #https://wiki.archlinux.org/title/Solid_state_drive/Memory_cell_clearing
     echo "[5] Automatic wipe (Executes the best compatible method)"
     read -p "Select your wiping method: " wipe
     echo
@@ -598,7 +599,7 @@ main() {
   esac
 }
 
-#Without this below part from bard, the above input_validation() function is not running. Have to understand this better.
+# Without this below part from bard, the above input validation does not work. Have to understand this better.
 input_valid=false
 
 while [ "$input_valid" = false ]; do
