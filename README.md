@@ -15,7 +15,8 @@ This tool can be used on any linux device. But it was mostly tested on a Raspber
   <li>Run the script: <code>bash memorywipe.sh</code></li>
 </ol>
 
-<b>You can find the report and presentation of this project in "docs" folder</b>
+<b>You can find the report and presentation of this project in "docs" folder</b><br>
+<b>This README is for users, not developers! Developers should check CONTRIBUTING.md.</b><br>
 
 ## Forensic Issues of IoT devices using NAND Flash Memory (Research)
 
@@ -63,3 +64,6 @@ or a custom FPGA board connected to the chip using a TSOP DIP48 adapter.<br>
 ## Disclaimer
 I am not responsible for any data lost intentionally or unintentionally. I have given necessary warnings.<br>
 It is solely the responsibility of the user, how the tool is utilized.<br>
+
+## Contact
+Suchit Reddi: <a href="mailto:suchit20016+memorywipe@gmail.com" target="_blank" rel="noopener noreferrer nofollow"><button>Mail</button></a>
