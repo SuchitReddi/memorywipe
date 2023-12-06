@@ -65,4 +65,6 @@ I am not responsible for any data lost intentionally or unintentionally. I have 
 How the tool is utilized, is the sole responsiblity of the person(s) using this program.<br>
 
 ## Contact
-Suchit Reddi: <a href="mailto:suchit20016+memorywipe@gmail.com" target="_blank" rel="noopener noreferrer nofollow">suchit20016+memorywipe@gmail.com</a>
+Mail: <a href="mailto:suchit20016+memorywipe@gmail.com" target="_blank" rel="noopener noreferrer nofollow">suchit20016+memorywipe@gmail.com</a>  
+Discord: <a href="https://discord.gg/9sRhDyCppQ" target="_blank">Memory Wipe</a>  
+Slack: <a href="https://opensrcmemorywipe.slack.com/archives/C0692ME4GC8" target="_blank">opensrc_memorywipe</a>
