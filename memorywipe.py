@@ -6,7 +6,17 @@ from shutil import which as swhich
 
 def check_install(app):
     return swhich(app) is not None
-    
+
+def validate_partition(path):
+    try:
+        subprocess.run(["grep", "-qs", path, "/proc/mounts"], check=True)
+    # If the above command doesn't raise a CalledProcessError, the partition exists
+        return path
+    except subprocess.CalledProcessError:
+    # The partition doesn't exist, print message and return False
+        click.echo("\nYour partition does not exist. Enter the correct partition. Start again...\n")
+        return False
+        
 class Sanitization:
     def __init__(self, val):
         self.method_value = val
@@ -21,6 +31,8 @@ class Sanitization:
         list_partitions()
         click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
         self.partition = click.prompt("Enter your device's partition (/dev/sda)")
+        if not validate_partition(self.partition):
+            raise click.Abort
         if not self._check_mount():
             raise click.Abort
         self._veracrypt_encrypt()
@@ -140,6 +152,9 @@ class Sanitization:
         list_partitions()
         click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
         self.partition = click.prompt("Enter your device's partition (/dev/sda)")
+        if not validate_partition(self.partition):
+            raise click.Abort
+        
         self._chk_compat_hdparm()
         self._chk_freeze()
         click.echo("The time taken for this process to finish will be:")
@@ -153,6 +168,7 @@ class Sanitization:
         click.echo("Password set!\n")
         self._select_enhance()
         click.echo("\nATA Secure Erase procedure successfully completed!", fg="bright_green")
+        del self.partition
         
         
     
@@ -231,13 +247,9 @@ def validate_extract(ctx, param, value):
         list_partitions()
         click.echo("If you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
         value = click.prompt("Enter your device's partition (/dev/sda)")
-    try:
-        subprocess.run(["grep", "-qs", value, "/proc/mounts"], check=True)
-    # If the above command doesn't raise a CalledProcessError, the partition exists
-        return value
-    except subprocess.CalledProcessError:
-    # The partition doesn't exist, print message and return False
-        click.echo("\nYour partition does not exist. Enter the correct partition. Starting again...\n")
+        valid_partition = validate_partition(value)
+        if valid_partition:
+            return valid_partition
         ctx.abort()
         
         
