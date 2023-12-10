@@ -27,6 +27,7 @@ class Sanitization:
         self._wipe_disk()
         self._mount_disk()
         click.echo("Cryptographic Wipe procedure completed successfully!", fg="bright_green")
+        del self.partition
         
     
     def chk_encrypted(self):
@@ -80,6 +81,7 @@ class Sanitization:
     
         subprocess.run(["sudo", "mount", f"{self.partition}", f"/media/{self.name}/"])
         click.echo("Finished mounting!\n", fg="green") 
+        del self.name
                      
     def _check_mount(self):
         try:
@@ -128,9 +130,31 @@ class Sanitization:
         return False
                                        
     def ata_hdparm(self):
-        click.echo(self.method_value)
-        pass
-
+        click.secho("You selected ATA Secure Erase...", fg="magenta")
+        click.echo("Starting ATA Secure Erase using hdparm...")
+        try:
+            assert self._ins_hdparm()
+        except AssertionError:
+            raise click.Abort
+        
+        list_partitions()
+        click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
+        self.partition = click.prompt("Enter your device's partition (/dev/sda)")
+        self._chk_compat_hdparm()
+        self._chk_freeze()
+        click.echo("The time taken for this process to finish will be:")
+        try:
+            info = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
+            output = subprocess.run(["grep", "-i", '"erase unit"'], input=info.stdout, check=True)
+        except subprocess.CalledProcessError:
+            click.secho("Couldn't get the partition information.\n", fg="yellow")
+        __pass_hdparm = click.prompt("Set a password", hide_input=True, confirmation_prompt=True)
+        # subprocess.run(["sudo" "hdparm" "--user-master" "u" "--security-set-pass" f"{__pass_hdparm}" f"{self.partition}"])
+        click.echo("Password set!\n")
+        self._select_enhance()
+        click.echo("\nATA Secure Erase procedure successfully completed!", fg="bright_green")
+        
+        
     
     def auto_wipe(self):
         click.echo(self.method_value)
