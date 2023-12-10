@@ -172,7 +172,7 @@ class Sanitization:
         click.secho("You selected ATA Secure Erase...", fg="magenta")
         click.echo("Starting ATA Secure Erase using hdparm...")
         try:
-            assert self._install_hdparm()
+            assert self._install_tool("hdparm")
         except AssertionError:
             raise click.Abort
         
@@ -198,12 +198,13 @@ class Sanitization:
         del self.partition
         del self._pass_hdparm
         
-    def _install_hdparm(self):
-        app = "hdparm"
+    def _install_tool(self, app):
         click.echo(f"\nChecking existing installation for {app}")
         if check_install(app):
             click.echo("Check complete...")
         else:
+            if app == "nandump":
+                app = "mtd-utils"
             click.echo(f"Installing {app}...")
             try:
                 subprocess.run(["sudo", "apt-get", "install", app, "-y"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
@@ -286,13 +287,40 @@ class Sanitization:
                 click.echo("Please wait... this may take a long time.")
                 # subprocess.run(["sudo", "hdparm", "--sanitize-crypto-scramble", f"{self.partition}"])
                 click.echo("Successfully finished Security Erase!")
-        
-                
+    
     
     def auto_wipe(self):
-        click.echo(self.method_value)
-        pass
-    
+        click.secho("You selected Automatic Wipe...", fg="magenta")
+        click.echo("This method checks each method for its compatibility and executes the best method")
+        list_partitions()
+        click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
+        self.partition = click.prompt("Enter your device's partition (/dev/sda)")
+        if not validate_partition(self.partition):
+            raise click.Abort
+
+        click.echo("Trying ATA Secure Erase...")
+        self._install_tool("hdparm")
+        hdparm_output= subprocess.check_output(["sudo", "hdparm", "--sanitize-status", f"{self.partition}"], text=True)
+        if "sanitize feature" in hdparm_output:
+            click.echo(f"ATA Secure Erase is compatible for {self.partition}!\n")
+            self.ata_hdparm()
+            return
+        click.secho(f"ATA Secure Erase is not compatible for {self.partition}. Trying SATA Secure Erase...", fg="yellow")
+ 
+        self._install_tool("sg3-utils")
+        sg_output = subprocess.check_output(["sudo", "sg_sanitize", "-C", "-z", "-Q", f"{self.partition}"], text=True)
+        if "fail" in sg_output:
+            click.echo(f"SATA Secure Erase is compatible for {self.partition}!")
+            return
+        click.echo(f"SATA Secure Erase is not compatible for {self.partition}. Trying NVMe Secure Erase...\n")
+   
+        self._install_tool("nvme-cli")
+        nvme_output= subprocess.check_output(["sudo", "nvme", "id-ctrl", f"{self.partition}", "-H"], text=True)
+        if "invalid" in nvme_output:
+            click.echo(f"NVMe Secure Erase is compatible for {self.partition}!\n")
+            return
+        click.echo(f"NVMe Secure Erase is not compatible for {self.partition}. Falling back to cryptographic wipe method...\n")
+        self.crypt_wipe()
 
 def validate_sanitize(ctx, param, value):
     if not value or ctx.resilient_parsing:
