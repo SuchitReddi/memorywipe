@@ -1,4 +1,3 @@
-import os
 import click
 import subprocess
 from shutil import which as swhich
@@ -9,17 +8,10 @@ def check_install(app):
 
 def list_partitions():
     valid_input = False
-    while True:
-        q1 = click.prompt("Do you want to see all the partitions?(y/n)[n]")
-        if q1 == "y":
-            valid_input = True
-            break
-        elif q1 == "n" or q1 == "":
-            break
-        else:
-            print("Invalid input. Please give either 'y' or 'n'")
-            print()
-
+    q1 = click.prompt("Do you want to see all the partitions?", type=click.Choice(["y", "n"]), default="n")
+    if q1 == "y":
+        valid_input = True
+        
     if valid_input:
         app = "lsblk"
         try:
@@ -35,10 +27,10 @@ def list_partitions():
 def validate_partition(path):
     try:
         subprocess.run(["grep", "-qs", path, "/proc/mounts"], check=True)
-    # If the above command doesn't raise a CalledProcessError, the partition exists
+        # If the above command doesn't raise a CalledProcessError, the partition exists
         return path
     except subprocess.CalledProcessError:
-    # The partition doesn't exist, print message and return False
+        # The partition doesn't exist, print message and return False
         click.echo("\nYour partition does not exist. Enter the correct partition. Start again...\n")
         return False
     
@@ -57,7 +49,7 @@ class Sanitization:
             raise click.Abort
         list_partitions()
         click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
-        self.partition = click.prompt("Enter your device's partition (/dev/sda)")
+        self.partition = click.prompt("Enter your device's partition", default="/dev/sda")
         if not validate_partition(self.partition):
             raise click.Abort
         if not self._check_mount():
@@ -178,7 +170,7 @@ class Sanitization:
         
         list_partitions()
         click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
-        self.partition = click.prompt("Enter your device's partition (/dev/sda)")
+        self.partition = click.prompt("Enter your device's partition", default="/dev/sda")
         if not validate_partition(self.partition):
             raise click.Abort
         
@@ -294,7 +286,7 @@ class Sanitization:
         click.echo("This method checks each method for its compatibility and executes the best method")
         list_partitions()
         click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
-        self.partition = click.prompt("Enter your device's partition (/dev/sda)")
+        self.partition = click.prompt("Enter your device's partition", default="/dev/sda")
         if not validate_partition(self.partition):
             raise click.Abort
 
@@ -366,7 +358,7 @@ def validate_extract(ctx, param, value):
         click.echo("Select a partition to extract:-")
         list_partitions()
         click.echo("If you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
-        value = click.prompt("Enter your device's partition (/dev/sda)")
+        value = click.prompt("Enter your device's partition", default="/dev/sda")
         valid_partition = validate_partition(value)
         if valid_partition:
             return valid_partition
@@ -389,7 +381,13 @@ def extract(partition, bytesize):
 @click.command()
 def verify():
     """Verification command"""
-    click.secho("You selected wiping...", fg="magenta")
+    click.secho("You selected verify...", fg="magenta")
+    click.echo("Command line forensic verification tool is yet to be added...\n")
+    click.echo("Verification is done by checking for recoverable files. This can be done in many ways.")
+    click.echo("The one I know and use is Autopsy, an open source application used for Forensics by Investigators and Law Enforcement officials or curious minds.")
+    click.echo("It can recover files from disk images. Bin dumps are disk images which can be extracted using the available Imaging process.")
+    click.echo("The detailed process for verification is as follows:\n")
+    click.echo("Work in Progress...")
 
 @click.group()
 def main():
@@ -399,7 +397,7 @@ def main():
     Main commands:\n
     1) sanitize: Sanitization (Wiping)\n
     2) extract: Extraction (Imaging)\n
-    3) verify: Verification (External process
+    3) verify: Verification (External process)`
     """
     pass
 
