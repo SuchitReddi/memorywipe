@@ -67,4 +67,4 @@ How the tool is utilized, is the sole responsiblity of the person(s) using this 
 ## Contact
 Mail: <a href="mailto:suchit20016+memorywipe@gmail.com" target="_blank" rel="noopener noreferrer nofollow">suchit20016+memorywipe@gmail.com</a>  
 Discord: <a href="https://discord.gg/9sRhDyCppQ" target="_blank">Memory Wipe</a>  
-Slack: <a href="https://opensrcmemorywipe.slack.com/archives/C0692ME4GC8" target="_blank">opensrc_memorywipe</a>
+Slack: <a href="https://join.slack.com/t/opensrcmemorywipe/shared_invite/zt-28olrjb9t-0k61qROOR8SHwBdbUZLf5g" target="_blank">opensrc_memorywipe</a>
