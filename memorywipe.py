@@ -7,6 +7,31 @@ from shutil import which as swhich
 def check_install(app):
     return swhich(app) is not None
 
+def list_partitions():
+    valid_input = False
+    while True:
+        q1 = click.prompt("Do you want to see all the partitions?(y/n)[n]")
+        if q1 == "y":
+            valid_input = True
+            break
+        elif q1 == "n" or q1 == "":
+            break
+        else:
+            print("Invalid input. Please give either 'y' or 'n'")
+            print()
+
+    if valid_input:
+        app = "lsblk"
+        try:
+            # Check if 'lsblk' is installed
+            subprocess.check_call(["which", app])
+            # If 'lsblk' is installed, use it to list the partitions
+            subprocess.run([app, "-f"])
+        except subprocess.CalledProcessError:
+            # If 'lsblk' is not installed, use 'df -hT' as a fallback
+            subprocess.run(["df", "-hT"])
+            
+            
 def validate_partition(path):
     try:
         subprocess.run(["grep", "-qs", path, "/proc/mounts"], check=True)
@@ -16,6 +41,8 @@ def validate_partition(path):
     # The partition doesn't exist, print message and return False
         click.echo("\nYour partition does not exist. Enter the correct partition. Start again...\n")
         return False
+    
+    
         
 class Sanitization:
     def __init__(self, val):
@@ -145,7 +172,7 @@ class Sanitization:
         click.secho("You selected ATA Secure Erase...", fg="magenta")
         click.echo("Starting ATA Secure Erase using hdparm...")
         try:
-            assert self._ins_hdparm()
+            assert self._install_hdparm()
         except AssertionError:
             raise click.Abort
         
@@ -163,43 +190,108 @@ class Sanitization:
             output = subprocess.run(["grep", "-i", '"erase unit"'], input=info.stdout, check=True)
         except subprocess.CalledProcessError:
             click.secho("Couldn't get the partition information.\n", fg="yellow")
-        __pass_hdparm = click.prompt("Set a password", hide_input=True, confirmation_prompt=True)
-        # subprocess.run(["sudo" "hdparm" "--user-master" "u" "--security-set-pass" f"{__pass_hdparm}" f"{self.partition}"])
+        self._pass_hdparm = click.prompt("Set a password", hide_input=True, confirmation_prompt=True)
+        # subprocess.run(["sudo" "hdparm" "--user-master" "u" "--security-set-pass" f"{self._pass_hdparm}" f"{self.partition}"])
         click.echo("Password set!\n")
         self._select_enhance()
         click.echo("\nATA Secure Erase procedure successfully completed!", fg="bright_green")
         del self.partition
+        del self._pass_hdparm
         
+    def _install_hdparm(self):
+        app = "hdparm"
+        click.echo(f"\nChecking existing installation for {app}")
+        if check_install(app):
+            click.echo("Check complete...")
+        else:
+            click.echo(f"Installing {app}...")
+            try:
+                subprocess.run(["sudo", "apt-get", "install", app, "-y"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            except subprocess.CalledProcessError:
+                click.secho(f"Error: Unable to install {app}. Please install it manually.", fg="red")
+                raise click.Abort
+    
+    def _chk_compat_hdparm(self):
+        try:
+            info = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
+            output = subprocess.run(["grep", "-i", '"sanitize feature"'], input=info.stdout, check=True)
+            click.echo("Your device supports hdparm set!")
+        except subprocess.CalledProcessError:
+            click.secho("Your device does not support hdaparm set!\n", fg="yellow")
+            click.Abort
+            
+    def _chk_freeze(self):
+        hdparm_output = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"], text=True)
+        if "frozen" not in hdparm_output:
+            click.echo("Device is not frozen! Continuing to next step...")
+        else:
+            click.secho("Device is frozen!", fg="yellow")
+            click.echo("A system suspend will suspend the device and start it after a minute unfrozen")
+            click.secho("YOUR DEVICE WILL TURN OFF FOR A FEW MINUTES IF YOU SELECT YES. DO NOT PANIC\n")
+            suspend = click.prompt("Do you want to suspend your system?", type=click.Choice(["y", "n"]), default=True)
+            if suspend == "y":
+                subprocess.run(["sudo", "systemctl", "suspend"])
+            else:
+                click.echo("You can't continue with this process without suspending...")
+                click.Abort
+                
+    def _chk_sanitize_status(self):
+        hdparm_output= subprocess.check_output(["sudo", "hdparm", "--sanitize-status", f"{self.partition}"], text=True)
+        if "sanitize feature" not in hdparm_output:
+            click.secho("Your device does not support sanitize feature set!", fg="yellow")
+        else:
+            click.echo("Your device supports sanitize feature set!")
+    
+    def _select_enhance(self):
+        menu = """
+        Available actions: 
+        [1] Enhanced Security Erase (Deletes data from bad blocks)
+        [2] Security Erase (Does not delete data from bad blocks)
+        [3] Sanitize Block Erase
+        [4] Sanitize Crypto Scramble (For Self-Encrypting SSDs)
+        """
+        click.echo(menu)
+        erase = click.prompt("Select your erase method", type=click.IntRange(1, 4), show_choices=True)
+        match erase:
+            case 1:
+                click.secho("You selected Enhanced Security Erase", fg="magenta")
+                click.echo("This mode writes predetermined data patterns set by the manufacturer to all areas including bad blocks")
+                click.echo("Please wait... this may take a long time. Atleast:")
+                hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
+                subprocess.check_output(["grep", "-i", "erase unit"], input=hdparm.stdout)
+                # subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase-enhanced", f"{self._pass_hdparm}", f"{self.partition}"])
+                click.echo("Successfully finished Enhanced Security Erase!")
+            case 2:
+                click.secho("You selected Security Erase", fg="magenta")
+                click.echo("This mode writes all user data excluding bad blocks with zeroes")
+                click.echo("Please wait... this may take a long time. Atleast:")
+                hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
+                subprocess.check_output(["grep", "-i", "erase unit"], input=hdparm.stdout)
+                # subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase", f"{self._pass_hdparm}", f"{self.partition}"])
+                click.echo("Successfully finished Security Erase!")
+            case 3:
+                click.secho("You selected Block Erase", fg="magenta")
+                # Code for option 3
+                click.echo("This mode raises each block to a voltage higher than the standard program voltage (erase voltage), and drops it to ground, leaving no trace of previous signal\n")
+                click.echo("Checking compatibility...\n")
+                self._chk_sanitize_status()
+                click.echo("Please wait... this may take a long time.")
+                # subprocess.run(["sudo", "hdparm", "--sanitize-block-erase", f"{self.partition}"])
+                click.echo("Successfully finished Block Erase!")
+            case 4:
+                click.secho("You selected Crypto Scramble Erase", fg="magenta")
+                click.echo("This mode rotates the internal cryptographic key used in self-encrypting drives, potentially rendering data unreadable if the encryption algorithm is strong\n")
+                click.echo("Checking compatibility...")
+                self._chk_sanitize_status()
+                click.echo("Please wait... this may take a long time.")
+                # subprocess.run(["sudo", "hdparm", "--sanitize-crypto-scramble", f"{self.partition}"])
+                click.echo("Successfully finished Security Erase!")
         
+                
     
     def auto_wipe(self):
         click.echo(self.method_value)
         pass
-
-
-def list_partitions():
-    valid_input = False
-    while True:
-        q1 = click.prompt("Do you want to see all the partitions?(y/n)[n]")
-        if q1 == "y":
-            valid_input = True
-            break
-        elif q1 == "n" or q1 == "":
-            break
-        else:
-            print("Invalid input. Please give either 'y' or 'n'")
-            print()
-
-    if valid_input:
-        app = "lsblk"
-        try:
-            # Check if 'lsblk' is installed
-            subprocess.check_call(["which", app])
-            # If 'lsblk' is installed, use it to list the partitions
-            subprocess.run([app, "-f"])
-        except subprocess.CalledProcessError:
-            # If 'lsblk' is not installed, use 'df -hT' as a fallback
-            subprocess.run(["df", "-hT"])
     
 
 def validate_sanitize(ctx, param, value):
