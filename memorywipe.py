@@ -129,7 +129,7 @@ class Sanitization:
             except subprocess.CalledProcessError:
                 click.secho(f"{self.partition} is already dismounted or doesn't exist")
                 return True
-            subprocess.run(["sudo", "unmount", self.partition], check=True)
+            subprocess.run(["sudo", "umount", self.partition], check=True)
             # Check if the partition is still mounted
             subprocess.run(["grep", "-qs", self.partition, "/proc/mounts"], check=True)
             click.echo(f"Error: Failed to unmount {self.partition}. Please unmount manually.", fg="red")
@@ -296,26 +296,35 @@ class Sanitization:
 
         click.echo("Trying ATA Secure Erase...")
         self._install_tool("hdparm")
-        hdparm_output= subprocess.check_output(["sudo", "hdparm", "--sanitize-status", f"{self.partition}"], text=True)
-        if "sanitize feature" in hdparm_output:
+        try:
+            hdparm_output = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"], text=True)
+            output = subprocess.check_output(["grep", "-i", '"sanitize feature"'], input=hdparm_output, text=True)
+            # if "sanitize feature" in hdparm_output:
             click.echo(f"ATA Secure Erase is compatible for {self.partition}!\n")
             self.ata_hdparm()
             return
-        click.secho(f"ATA Secure Erase is not compatible for {self.partition}. Trying SATA Secure Erase...", fg="yellow")
+        except subprocess.CalledProcessError:
+            click.secho(f"ATA Secure Erase is not compatible for {self.partition}. Trying SATA Secure Erase...", fg="yellow")
  
         self._install_tool("sg3-utils")
-        sg_output = subprocess.check_output(["sudo", "sg_sanitize", "-C", "-z", "-Q", f"{self.partition}"], text=True)
-        if "fail" in sg_output:
+        try:
+            sg_output = subprocess.check_output(["sudo", "sg_sanitize", "-CzQ", f"{self.partition}"], text=True, encoding="latin-1")
+            output = subprocess.check_output(["grep", "-i", 'fail'], input=sg_output, text=True)
+            # if "fail" in sg_output:
             click.echo(f"SATA Secure Erase is compatible for {self.partition}!")
             return
-        click.echo(f"SATA Secure Erase is not compatible for {self.partition}. Trying NVMe Secure Erase...\n")
+        except subprocess.CalledProcessError:
+            click.echo(f"SATA Secure Erase is not compatible for {self.partition}. Trying NVMe Secure Erase...\n")
    
         self._install_tool("nvme-cli")
-        nvme_output= subprocess.check_output(["sudo", "nvme", "id-ctrl", f"{self.partition}", "-H"], text=True)
-        if "invalid" in nvme_output:
+        try:
+            nvme_output = subprocess.check_output(["sudo", "nvme", "id-ctrl", f"{self.partition}", "-H"], text=True)
+            output = subprocess.check_output([" grep", "-i", 'invalid'], input=nvme_output, text=True)
             click.echo(f"NVMe Secure Erase is compatible for {self.partition}!\n")
             return
-        click.echo(f"NVMe Secure Erase is not compatible for {self.partition}. Falling back to cryptographic wipe method...\n")
+        except subprocess.CalledProcessError:
+            click.echo(f"NVMe Secure Erase is not compatible for {self.partition}. Falling back to cryptographic wipe method...\n")
+        
         self.crypt_wipe()
 
 def validate_sanitize(ctx, param, value):
