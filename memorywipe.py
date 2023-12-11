@@ -48,8 +48,11 @@ class Sanitization:
             assert self._install_veracrypt()
         except AssertionError:
             raise click.Abort
+        click.secho("WARNING: This process is irreversible. Create necessary backups if required (You may use the extraction module for this).\n", fg="yellow")
+        click.secho("NOTE: Cryptographic Wipe on Flash Storage partitions may not be effective. Perform it on the whole disk.", fg="blue")
+        click.secho("If there are multiple partitions in the device, format them into one single partition, and then wipe it.", fg="blue")
         list_partitions()
-        click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
+        click.echo("\nIf you want to wipe the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
         self.partition = click.prompt("Enter your device's partition", default="/dev/sda")
         if not validate_partition(self.partition):
             raise click.Abort
@@ -170,7 +173,7 @@ class Sanitization:
             raise click.Abort
         
         list_partitions()
-        click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
+        click.echo("\nIf you want to wipe the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
         self.partition = click.prompt("Enter your device's partition", default="/dev/sda")
         if not validate_partition(self.partition):
             raise click.Abort
@@ -286,7 +289,7 @@ class Sanitization:
         click.secho("You selected Automatic Wipe...", fg="magenta")
         click.echo("This method checks each method for its compatibility and executes the best method")
         list_partitions()
-        click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
+        click.echo("\nIf you want to wipe the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
         self.partition = click.prompt("Enter your device's partition", default="/dev/sda")
         if not validate_partition(self.partition):
             raise click.Abort
