@@ -1,3 +1,4 @@
+import os
 import click
 import subprocess
 from shutil import which as swhich
@@ -335,7 +336,7 @@ def validate_sanitize(ctx, param, value):
 
 
 @click.command()
-@click.option("--method", "-m", type=click.IntRange(1, 6), callback=validate_sanitize, is_eager=True)
+@click.option("--method", "-m", type=click.IntRange(1, 6), callback=validate_sanitize, is_eager=False)
 def sanitize(method):
     """Sanitization command"""
     wipe = Sanitization(method)
@@ -363,10 +364,11 @@ def validate_extract(ctx, param, value):
         if valid_partition:
             return valid_partition
         ctx.abort()
+    return value
         
         
 @click.command()
-@click.option("--partition", "-p", type=click.Path(exists=True, readable=False, resolve_path=True), callback=validate_extract, is_eager=True)
+@click.option("--partition", "-p", type=click.Path(exists=True, readable=False, resolve_path=True), callback=validate_extract, is_eager=False)
 @click.option("--bytesize", "-b", default="1M", help="""
                 N and BYTES may be followed by the following multiplicative suffixes:
                 c =1, w =2, b =512, kB =1000, K =1024, MB =1000*1000, M =1024*1024, xM =M,
@@ -375,6 +377,8 @@ def validate_extract(ctx, param, value):
 def extract(partition, bytesize):
     """Extraction command"""
     loc = click.prompt("Enter ouput location for the bin file (/path/to/your/image.bin)")
+    loc = os.path.expandvars(loc) # To handle input with $ symbols like $HOME, $PATH, etc.
+    loc = os.path.expanduser(loc) # To handle input with "~" or "~user" in input prompt
     subprocess.run(["sudo", "dd", f"if={partition}", f"of={loc}", f"bs={bytesize}", "status=progress"])
     
 
@@ -397,7 +401,7 @@ def main():
     Main commands:\n
     1) sanitize: Sanitization (Wiping)\n
     2) extract: Extraction (Imaging)\n
-    3) verify: Verification (External process)`
+    3) verify: Verification (External process)
     """
     pass
 
