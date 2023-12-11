@@ -63,8 +63,7 @@ class Sanitization:
         self._mount_disk()
         click.echo("Cryptographic Wipe procedure completed successfully!", fg="bright_green")
         del self.partition
-        
-    
+            
     def chk_encrypted(self):
         try:
             lsblk = subprocess.run(["lsblk", "-f", "/dev/nvme0n1p8"], capture_output=True, check=True)
@@ -76,7 +75,80 @@ class Sanitization:
             click.echo(f"{self.partition} doesn't exist")
             return False
         return True
-            
+    
+    def _veracrypt_interactive(self):
+        click.echo("Volume type:\n1) Normal\n2) Hidden")
+        vol_type_dict = {1: "normal",2: "hidden"}
+        vol_type = vol_type_dict[click.prompt("Select", default=1, type=click.IntRange(1, 2), show_choices=False)]
+        click.echo(
+            "Encryption Algorithm:\n"
+            "1) AES\n"
+            "2) Serpent\n"
+            "3) Twofish\n"
+            "4) Camellia\n"
+            "5) Kuznyechik\n"
+            "6) AES(Twofish)\n"
+            "7) AES(Twofish(Serpent))\n"
+            "8) Camellia(Kuznyechik)\n"
+            "9) Camellia(Serpent)\n"
+            "10) Kuznyechik(AES)\n"
+            "11) Kuznyechik(Serpent(Camellia))\n"
+            "12) Kuznyechik(Twofish)\n"
+            "13) Serpent(AES)\n"
+            "14) Serpent(Twofish(AES))\n"
+            "15) Twofish(Serpent)"
+            )
+        encrypt_type_dict = {
+                1: "aes",
+                2: "serpent",
+                3: "twofish",
+                4: "camellia",
+                5: "kuznyechik",
+                6: "aes(twofish)",
+                7: "aes(twofish(serpent))",
+                8: "camellia(kuznyechik)",
+                9: "camellia(serpent)",
+                10: "kuznyechik(aes)",
+                11: "kuznyechik(serpent(camellia))",
+                12: "kuznyechik(twofish)",
+                13: "serpent(aes)",
+                14: "serpent(twofish(aes))",
+                15: "twofish(serpent)"
+                }
+        encrypt_type = encrypt_type_dict[click.prompt("Select", default=1, type=click.IntRange(1, 15), show_choices=False)]
+        click.echo("Hash algorithm:\n1) SHA-512\n2) Whirlpool\n3) BLAKE2s-256\n4) SHA-256\n5) Streebog\n")
+        hash_algo_dict = {1: "sha-512", 2: "whirlpool", 3: "blake2s-256", 4: "sha-256", 5: "streebog"}
+        hash_algo = hash_algo_dict[click.prompt("Select", default=1, type=click.IntRange(1, 5), show_choices=False)]
+        click.echo(
+            "Filesystem:\n"
+            "1) None\n"
+            "2) FAT\n"
+            "3) Linux Ext2\n"
+            "4) Linux Ext3\n"
+            "5) Linux Ext4\n"
+            "6) NTFS"
+            )
+        filesystem_dict = {
+            1: "none",
+            2: "fat",
+            3: "linux ext2",
+            4: "linux ext3",
+            5: "linux ext4",
+            6: "ntfs"
+        }
+        filesystem = filesystem_dict[click.prompt("Select", default=2, type=click.IntRange(1, 6), show_choices=False)]
+        click.echo("\nEnter strong password for encrypting. (You don't have to remember it)")
+        strongp = click.prompt("So set a random password with special characters: ", hide_input=True, confirmation_prompt=True)
+        out = subprocess.run(["sudo", "veracrypt", "-tc", f"--volume-type={vol_type}", 
+                                f"{self.partition}", f'--encryption={encrypt_type}', f'--hash={hash_algo}', 
+                                f"--filesystem={filesystem}", "-p", f"{strongp}", "--pim=0", 
+                                "-k", "", "--random-source=/dev/urandom"], capture_output=True)
+        if out.returncode:
+            click.secho(out.stderr.decode(), fg="yellow")
+        show_out = click.prompt("Do you wish to see the output of the command run?", type=click.Choice(["y", "n"]), default="n")
+        if show_out == "y":
+            click.echo(out.stdout.decode())
+                  
     def _veracrypt_encrypt(self):
         if self.chk_encrypted():
             click.echo("Selected partition is already encrypted! Skipping encryption...\n")
@@ -84,17 +156,18 @@ class Sanitization:
             q2 = click.prompt("Do you want to encrypt manually or automatically?", type=click.Choice(["m", "a"]), show_choices=True, default="a")
             if q2 == "m":
                 click.echo("Starting veracrypt manually...\n")
-                out = subprocess.run(["sudo", "veracrypt", "-t", "-c"], capture_output=True)
+                self._veracrypt_interactive()
+                click.secho(f"Finished encrypting {self.partition}\n", fg="green")
             elif q2 == "a":
                 click.echo("Uses AES, with SHA-512 and makes an NTFS filesystem")
                 click.echo("\nEnter strong password for encrypting. (You don't have to remember it)")
                 strongp = click.prompt("So set a random password with special characters: ", hide_input=True, confirmation_prompt=True)
-                out = subprocess.run(["sudo", "veracrypt", "-t", "-c", -"-volume-type=normal", 
-                                f"{self.partition}", "--encryption=aes" "--hash=sha-512", 
-                                "--filesystem=ntfs", "-p" f"{strongp}", "--pim=0", 
+                out = subprocess.run(["sudo", "veracrypt", "-tc", "--volume-type=normal", 
+                                f"{self.partition}", "--encryption=aes", "--hash=sha-512", 
+                                "--filesystem=ntfs", "-p", f"{strongp}", "--pim=0", 
                                 "-k", '""', "--random-source=/dev/urandom"], capture_output=True)
                 click.secho(f"Finished encrypting {self.partition}\n", fg="green")
-                           
+                              
     def _wipe_disk(self):
         click.echo(f"Wiping {self.partition}...")
         if not self._check_mount():
@@ -120,7 +193,7 @@ class Sanitization:
                      
     def _check_mount(self):
         try:
-            click.echo("Unmounting the partition...")
+            click.secho("Unmounting the partition...", fg="blue")
             # Run the grep command to check if the partition is in /proc/mounts
             try:         
                 subprocess.run(["grep", "-qs", self.partition, "/proc/mounts"], check=True)
@@ -135,7 +208,7 @@ class Sanitization:
             click.echo(f"Error: Failed to unmount {self.partition}. Please unmount manually.", fg="red")
             return False
         except subprocess.CalledProcessError:
-            click.secho(f"{self.partition} has been succesfully mounted")
+            click.secho(f"{self.partition} has been succesfully mounted", fg="green")
             return True
         
     def _install_veracrypt(self):
@@ -283,8 +356,7 @@ class Sanitization:
                 click.echo("Please wait... this may take a long time.")
                 # subprocess.run(["sudo", "hdparm", "--sanitize-crypto-scramble", f"{self.partition}"])
                 click.echo("Successfully finished Security Erase!")
-    
-    
+      
     def auto_wipe(self):
         click.secho("You selected Automatic Wipe...", fg="magenta")
         click.echo("This method checks each method for its compatibility and executes the best method")
