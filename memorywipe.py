@@ -104,7 +104,7 @@ class Sanitization:
         vol_type_dict = {1: "normal", 2: "hidden"}
         vol_type = vol_type_dict[click.prompt("Select", default=1, type=click.IntRange(1, 2), show_choices=False)]
         click.echo(
-            "Encryption Algorithm:\n"
+            "\nEncryption Algorithm:\n"
             "1) AES\n"
             "2) Serpent\n"
             "3) Twofish\n"
@@ -140,11 +140,11 @@ class Sanitization:
         }
         encrypt_type = encrypt_type_dict[
             click.prompt("Select", default=1, type=click.IntRange(1, 15), show_choices=False)]
-        click.echo("Hash algorithm:\n1) SHA-512\n2) Whirlpool\n3) BLAKE2s-256\n4) SHA-256\n5) Streebog\n")
+        click.echo("\nHash algorithm:\n1) SHA-512\n2) Whirlpool\n3) BLAKE2s-256\n4) SHA-256\n5) Streebog")
         hash_algo_dict = {1: "sha-512", 2: "whirlpool", 3: "blake2s-256", 4: "sha-256", 5: "streebog"}
         hash_algo = hash_algo_dict[click.prompt("Select", default=1, type=click.IntRange(1, 5), show_choices=False)]
         click.echo(
-            "Filesystem:\n"
+            "\nFilesystem:\n"
             "1) None\n"
             "2) FAT\n"
             "3) Linux Ext2\n"
@@ -168,22 +168,18 @@ class Sanitization:
                               f"{self.partition}", f'--encryption={encrypt_type}', f'--hash={hash_algo}',
                               f"--filesystem={filesystem}", "-p", f"{strongp}", "--pim=0",
                               "-k", "", "--random-source=/dev/urandom"], capture_output=True)
-        if out.returncode:
-            click.secho(out.stderr.decode(), fg="yellow")
-        show_out = click.prompt("Do you wish to see the output of the command run?", type=click.Choice(["y", "n"]),
-                                default="n")
-        if show_out == "y":
-            click.echo(out.stdout.decode())
+        return out
 
     def _veracrypt_encrypt(self):
         if self.chk_encrypted():
             click.echo("Selected partition is already encrypted! Skipping encryption...\n")
         else:
+            out = None
             q2 = click.prompt("Do you want to encrypt manually or automatically?", type=click.Choice(["m", "a"]),
                               show_choices=True, default="a")
             if q2 == "m":
                 click.echo("Starting veracrypt manually...\n")
-                self._veracrypt_interactive()
+                out = self._veracrypt_interactive()
                 click.secho(f"Finished encrypting {self.partition}\n", fg="green")
             elif q2 == "a":
                 click.echo("Uses AES, with SHA-512 and makes an NTFS filesystem")
@@ -195,7 +191,16 @@ class Sanitization:
                                       "--filesystem=ntfs", "-p", f"{strongp}", "--pim=0",
                                       "-k", '""', "--random-source=/dev/urandom"], capture_output=True)
 
-                click.secho(f"Finished encrypting {self.partition}\n", fg="green")
+            if out.returncode:
+                click.secho(out.stderr.decode(), fg="yellow")
+                click.Abort()
+
+            show_out = click.prompt("Do you wish to see the output of the command run?",
+                                    type=click.Choice(["y", "n"]),
+                                    default="n")
+            if show_out == "y":
+                click.echo(out.stdout.decode())
+            click.secho(f"Finished encrypting {self.partition}\n", fg="green")
 
     def _wipe_disk(self):
         click.echo(f"Wiping {self.partition}...")
@@ -238,7 +243,7 @@ class Sanitization:
             click.secho(f"Error: Failed to unmount {self.partition}. Please unmount manually.", fg="red")
             return False
         except subprocess.CalledProcessError:
-            click.secho(f"{self.partition} has been succesfully unmounted", fg="green")
+            click.secho(f"{self.partition} has been successfully unmounted", fg="green")
             return True
 
     def _install_veracrypt(self):
@@ -288,7 +293,7 @@ class Sanitization:
         click.echo("The time taken for this process to finish will be:")
         try:
             info = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
-            output = subprocess.run(["grep", "-i", '"erase unit"'], input=info.stdout, check=True)
+            subprocess.run(["grep", "-i", '"erase unit"'], input=info.stdout, check=True)
         except subprocess.CalledProcessError:
             click.secho("Couldn't get the partition information.\n", fg="yellow")
         self._pass_hdparm = click.prompt("Set a password", hide_input=True, confirmation_prompt=True)
@@ -302,10 +307,10 @@ class Sanitization:
     def _chk_compat_hdparm(self):
         try:
             info = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
-            output = subprocess.run(["grep", "-i", '"sanitize feature"'], input=info.stdout, check=True)
+            subprocess.run(["grep", "-i", '"sanitize feature"'], input=info.stdout, check=True)
             click.echo("Your device supports hdparm set!")
         except subprocess.CalledProcessError:
-            click.secho("Your device does not support hdaparm set!\n", fg="yellow")
+            click.secho("Your device does not support hdparm set!\n", fg="yellow")
             click.Abort()
 
     def _chk_freeze(self):
@@ -345,7 +350,7 @@ class Sanitization:
                 click.secho("You selected Enhanced Security Erase", fg="magenta")
                 click.echo(
                     "This mode writes predetermined data patterns set by the manufacturer to all areas including bad blocks")
-                click.echo("Please wait... this may take a long time. Atleast:")
+                click.echo("Please wait... this may take a long time. At-least:")
                 hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
                 subprocess.check_output(["grep", "-i", "erase unit"], input=hdparm.stdout)
                 # subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase-enhanced", f"{self._pass_hdparm}", f"{self.partition}"])
@@ -353,7 +358,7 @@ class Sanitization:
             case 2:
                 click.secho("You selected Security Erase", fg="magenta")
                 click.echo("This mode writes all user data excluding bad blocks with zeroes")
-                click.echo("Please wait... this may take a long time. Atleast:")
+                click.echo("Please wait... this may take a long time. At-least:")
                 hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
                 subprocess.check_output(["grep", "-i", "erase unit"], input=hdparm.stdout)
                 # subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase", f"{self._pass_hdparm}", f"{self.partition}"])
@@ -391,7 +396,7 @@ class Sanitization:
         _install_tool("hdparm")
         try:
             hdparm_output = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"], text=True)
-            output = subprocess.check_output(["grep", "-i", '"sanitize feature"'], input=hdparm_output, text=True)
+            subprocess.check_output(["grep", "-i", '"sanitize feature"'], input=hdparm_output, text=True)
             # if "sanitize feature" in hdparm_output:
             click.echo(f"ATA Secure Erase is compatible for {self.partition}!\n")
             self.ata_hdparm()
@@ -404,22 +409,25 @@ class Sanitization:
         try:
             sg_output = subprocess.check_output(["sudo", "sg_sanitize", "-CzQ", f"{self.partition}"], text=True,
                                                 encoding="latin-1")
-            output = subprocess.check_output(["grep", "-i", 'fail'], input=sg_output, text=True)
+            subprocess.check_output(["grep", "-i", 'fail'], input=sg_output, text=True)
             # if "fail" in sg_output:
             click.echo(f"SATA Secure Erase is compatible for {self.partition}!")
             return
         except subprocess.CalledProcessError:
-            click.echo(f"SATA Secure Erase is not compatible for {self.partition}. Trying NVMe Secure Erase...\n")
+            click.secho(
+                f"SATA Secure Erase is not compatible for {self.partition}. Trying NVMe Secure Erase...\n",
+                fg="yellow")
 
         _install_tool("nvme-cli")
         try:
             nvme_output = subprocess.check_output(["sudo", "nvme", "id-ctrl", f"{self.partition}", "-H"], text=True)
-            output = subprocess.check_output([" grep", "-i", 'invalid'], input=nvme_output, text=True)
+            subprocess.check_output([" grep", "-i", 'invalid'], input=nvme_output, text=True)
             click.echo(f"NVMe Secure Erase is compatible for {self.partition}!\n")
             return
         except subprocess.CalledProcessError:
-            click.echo(
-                f"NVMe Secure Erase is not compatible for {self.partition}. Falling back to cryptographic wipe method...\n")
+            click.secho(
+                f"NVMe Secure Erase is not compatible for {self.partition}. Falling back to cryptographic wipe "
+                f"method...\n", fg="yellow")
 
         self.crypt_wipe()
 
@@ -455,7 +463,7 @@ def sanitize(method):
         case 2:
             wipe.ata_hdparm()
         case 3 | 4:
-            click.echo("No NVMe devices are availble for testing. Will be added soon...")
+            click.echo("No NVMe devices are available for testing. Will be added soon...")
         case 5:
             wipe.auto_wipe()
         case _:
@@ -486,7 +494,7 @@ def validate_extract(ctx, param, value):
                 """)
 def extract(partition, bytesize):
     """Extraction command"""
-    loc = click.prompt("Enter ouput location for the bin file (/path/to/your/image.bin)")
+    loc = click.prompt("Enter output location for the bin file (/path/to/your/image.bin)")
     loc = os.path.expandvars(loc)  # To handle input with $ symbols like $HOME, $PATH, etc.
     loc = os.path.expanduser(loc)  # To handle input with "~" or "~user" in input prompt
     subprocess.run(["sudo", "dd", f"if={partition}", f"of={loc}", f"bs={bytesize}", "status=progress"])
