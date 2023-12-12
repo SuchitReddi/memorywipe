@@ -138,7 +138,7 @@ class Sanitization:
         }
         filesystem = filesystem_dict[click.prompt("Select", default=2, type=click.IntRange(1, 6), show_choices=False)]
         click.echo("\nEnter strong password for encrypting. (You don't have to remember it)")
-        strongp = click.prompt("So set a random password with special characters: ", hide_input=True, confirmation_prompt=True)
+        strongp = click.prompt("So set a random password with special characters: ", hide_input=True, confirmation_prompt=False)
         out = subprocess.run(["sudo", "veracrypt", "-tc", f"--volume-type={vol_type}", 
                                 f"{self.partition}", f'--encryption={encrypt_type}', f'--hash={hash_algo}', 
                                 f"--filesystem={filesystem}", "-p", f"{strongp}", "--pim=0", 
@@ -161,7 +161,7 @@ class Sanitization:
             elif q2 == "a":
                 click.echo("Uses AES, with SHA-512 and makes an NTFS filesystem")
                 click.echo("\nEnter strong password for encrypting. (You don't have to remember it)")
-                strongp = click.prompt("So set a random password with special characters: ", hide_input=True, confirmation_prompt=True)
+                strongp = click.prompt("So set a random password with special characters: ", hide_input=True, confirmation_prompt=False)
                 out = subprocess.run(["sudo", "veracrypt", "-tc", "--volume-type=normal", 
                                 f"{self.partition}", "--encryption=aes", "--hash=sha-512", 
                                 "--filesystem=ntfs", "-p", f"{strongp}", "--pim=0", 
@@ -208,7 +208,7 @@ class Sanitization:
             click.echo(f"Error: Failed to unmount {self.partition}. Please unmount manually.", fg="red")
             return False
         except subprocess.CalledProcessError:
-            click.secho(f"{self.partition} has been succesfully mounted", fg="green")
+            click.secho(f"{self.partition} has been succesfully unmounted", fg="green")
             return True
         
     def _install_veracrypt(self):
