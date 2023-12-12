@@ -179,7 +179,7 @@ class Sanitization:
             
             click.secho(f"{self.partition} overwritten with one write each of random data and zeroes", fg="bright_white")
             self.name = click.prompt("Set device name")
-            subprocess.run("sudo", "mkfs.ntfs", "-L", f"{self.name}", f"{self.partition}")
+            subprocess.run(["sudo", "mkfs.ntfs", "-L", f"{self.name}", f"{self.partition}"])
             click.secho(f"Wiped {self.partition}\n", fg="green")
             
     def _mount_disk(self):
