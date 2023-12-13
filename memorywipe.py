@@ -57,6 +57,7 @@ class Sanitization:
     def __init__(self, val):
         self.method_value = val
         self.partition = None
+        self.filesystem = None
 
     def crypt_wipe(self):
         click.secho("You selected Cryptographic Wipe.", fg="magenta")
@@ -160,13 +161,13 @@ class Sanitization:
             5: "linux ext4",
             6: "ntfs"
         }
-        filesystem = filesystem_dict[click.prompt("Select", default=2, type=click.IntRange(1, 6), show_choices=False)]
+        self.filesystem = filesystem_dict[click.prompt("Select", default=2, type=click.IntRange(1, 6), show_choices=False)]
         click.echo("\nEnter strong password for encrypting. (You don't have to remember it)")
         strongp = click.prompt("So set a random password with special characters", hide_input=True,
                                confirmation_prompt=False)
         out = subprocess.run(["sudo", "veracrypt", "-tc", f"--volume-type={vol_type}",
                               f"{self.partition}", f'--encryption={encrypt_type}', f'--hash={hash_algo}',
-                              f"--filesystem={filesystem}", "-p", f"{strongp}", "--pim=0",
+                              f"--filesystem={self.ilesystem}", "-p", f"{strongp}", "--pim=0",
                               "-k", "", "--random-source=/dev/urandom"], capture_output=True)
         return out
 
@@ -180,8 +181,9 @@ class Sanitization:
             if q2 == "m":
                 click.echo("Starting veracrypt manually...\n")
                 out = self._veracrypt_interactive()
-                click.secho(f"Finished encrypting {self.partition}\n", fg="green")
+                
             elif q2 == "a":
+                self.filesystem = "ntfs"
                 click.echo("Uses AES, with SHA-512 and makes an NTFS filesystem")
                 click.echo("\nEnter strong password for encrypting. (You don't have to remember it)")
                 strongp = click.prompt("So set a random password with special characters", hide_input=True,
@@ -189,17 +191,12 @@ class Sanitization:
                 out = subprocess.run(["sudo", "veracrypt", "-tc", "--volume-type=normal",
                                       f"{self.partition}", "--encryption=aes", "--hash=sha-512",
                                       "--filesystem=ntfs", "-p", f"{strongp}", "--pim=0",
-                                      "-k", '""', "--random-source=/dev/urandom"], capture_output=True)
+                                      "-k", "", "--random-source=/dev/urandom"], capture_output=True)
 
             if out.returncode:
                 click.secho(out.stderr.decode(), fg="yellow")
                 click.Abort()
 
-            show_out = click.prompt("Do you wish to see the output of the command run?",
-                                    type=click.Choice(["y", "n"]),
-                                    default="n")
-            if show_out == "y":
-                click.echo(out.stdout.decode())
             click.secho(f"Finished encrypting {self.partition}\n", fg="green")
 
     def _wipe_disk(self):
@@ -214,7 +211,16 @@ class Sanitization:
             click.secho(f"{self.partition} overwritten with one write each of random data and zeroes",
                         fg="bright_white")
             self.name = click.prompt("Set device name")
-            subprocess.run(["sudo", "mkfs.ntfs", "-L", f"{self.name}", f"{self.partition}"])
+            try:
+                if self.partition == "fat":
+                    out = subprocess.run(["sudo", f"mkfs.{self.filesystem}", "-n", f"{self.name}", "-F", "32", f"{self.partition}"], check=True)
+                else:
+                    out = subprocess.run(["sudo", f"mkfs.{self.filesystem}", "-L", f"{self.name}", f"{self.partition}"], check=True)
+            except subprocess.CalledProcessError as e:
+                click.secho("Failed to create filesystem!", fg="red")
+                click.echo(e)
+                click.Abort()
+                
             click.secho(f"Wiped {self.partition}\n", fg="green")
 
     def _mount_disk(self):
