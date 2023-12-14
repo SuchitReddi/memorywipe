@@ -177,7 +177,7 @@ class Sanitization:
         else:
             q2 = click.prompt("Do you want to encrypt manually or automatically?", type=click.Choice(["m", "a"]),
                               show_choices=True, default="a")
-            click.secho("Executing VeraCrypt volume creation command...", fg="bright_magenta")
+            click.secho("Executing VeraCrypt volume creation command...\nPlease wait. This might take a long time for larger storages...", fg="bright_magenta")
             if q2 == "m":
                 click.echo("Starting veracrypt manually...\n")
                 self._veracrypt_interactive()
@@ -202,7 +202,7 @@ class Sanitization:
             click.secho("Make sure the disk is unmounted!", fg="red")
             raise click.Abort
         else:
-            click.secho("Executing dd command and writing random values to partition...", fg="bright_magenta")
+            click.secho("Executing dd command and writing random values to partition....\nPlease be patient. This make take longer time for larger partitions.", fg="bright_magenta")
             subprocess.run(["sudo", "dd", "if=/dev/random", f"of={self.partition}", "bs=1M", "status=progress"])
             click.secho("Executing dd command and writing zeros to partition...", fg="bright_magenta")
             subprocess.run(["sudo", "dd", "if=/dev/zero", f"of={self.partition}", "bs=1M", "status=progress"])
