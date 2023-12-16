@@ -288,7 +288,7 @@ class Sanitization:
         click.secho("You selected ATA Secure Erase...", fg="magenta")
         click.echo("Starting ATA Secure Erase using hdparm...")
         try:
-            assert _install_tool("hdparm")
+            _install_tool("hdparm")
         except AssertionError:
             raise click.Abort
 
@@ -300,13 +300,14 @@ class Sanitization:
 
         self._chk_compat_hdparm()
         self._chk_freeze()
+        self._chk_freeze()
         click.echo("The time taken for this process to finish will be:")
         try:
             info = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
             subprocess.run(["grep", "-i", "erase unit"], input=info.stdout, check=True)
         except subprocess.CalledProcessError:
-            click.secho("Couldn't get the partition information.\n", fg="yellow")
-        self._pass_hdparm = click.prompt("Set a password", hide_input=True, confirmation_prompt=True)
+            click.secho("Couldn't get time taken info.\n", fg="yellow")
+        self._pass_hdparm = click.prompt("Set a password", hide_input=True, confirmation_prompt=False)
         # subprocess.run(["sudo" "hdparm" "--user-master" "u" "--security-set-pass" f"{self._pass_hdparm}" f"{self.partition}"])
         click.echo("Password set!\n")
         self._select_enhance()
@@ -325,13 +326,13 @@ class Sanitization:
         
     def _chk_freeze(self):
         hdparm_output = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"], text=True)
-        if "frozen" not in hdparm_output:
+        if "not	frozen" in hdparm_output:
             click.echo("Device is not frozen! Continuing to next step...")
         else:
             click.secho("Device is frozen!", fg="yellow")
             click.echo("A system suspend will suspend the device and start it after a minute unfrozen")
             click.secho("YOUR DEVICE WILL TURN OFF FOR A FEW MINUTES IF YOU SELECT YES. DO NOT PANIC\n")
-            suspend = click.prompt("Do you want to suspend your system?", type=click.Choice(["y", "n"]), default=True)
+            suspend = click.prompt("Do you want to suspend your system?", type=click.Choice(["y", "n"]), default='n')
             if suspend == "y":
                 subprocess.run(["sudo", "systemctl", "suspend"])
             else:
@@ -362,7 +363,7 @@ class Sanitization:
                     "This mode writes predetermined data patterns set by the manufacturer to all areas including bad blocks")
                 click.echo("Please wait... this may take a long time. At-least:")
                 hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
-                subprocess.check_output(["grep", "-i", "erase unit"], input=hdparm.stdout)
+                subprocess.run(["grep", "-i", "erase unit"], input=hdparm.stdout)
                 # subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase-enhanced", f"{self._pass_hdparm}", f"{self.partition}"])
                 click.echo("Successfully finished Enhanced Security Erase!")
             case 2:
@@ -370,7 +371,7 @@ class Sanitization:
                 click.echo("This mode writes all user data excluding bad blocks with zeroes")
                 click.echo("Please wait... this may take a long time. At-least:")
                 hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
-                subprocess.check_output(["grep", "-i", "erase unit"], input=hdparm.stdout)
+                subprocess.run(["grep", "-i", "erase unit"], input=hdparm.stdout)
                 # subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase", f"{self._pass_hdparm}", f"{self.partition}"])
                 click.echo("Successfully finished Security Erase!")
             case 3:
@@ -380,7 +381,9 @@ class Sanitization:
                     "This mode raises each block to a voltage higher than the standard program voltage (erase voltage), and drops it to ground, leaving no trace of previous signal\n")
                 click.echo("Checking compatibility...\n")
                 self._chk_sanitize_status()
-                click.echo("Please wait... this may take a long time.")
+                click.echo("Please wait... this may take a long time. At-least:")
+                hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
+                subprocess.run(["grep", "-i", "erase unit"], input=hdparm.stdout)
                 # subprocess.run(["sudo", "hdparm", "--sanitize-block-erase", f"{self.partition}"])
                 click.echo("Successfully finished Block Erase!")
             case 4:
@@ -389,7 +392,9 @@ class Sanitization:
                     "This mode rotates the internal cryptographic key used in self-encrypting drives, potentially rendering data unreadable if the encryption algorithm is strong\n")
                 click.echo("Checking compatibility...")
                 self._chk_sanitize_status()
-                click.echo("Please wait... this may take a long time.")
+                click.echo("Please wait... this may take a long time. At-least:")
+                hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
+                subprocess.run(["grep", "-i", "erase unit"], input=hdparm.stdout)
                 # subprocess.run(["sudo", "hdparm", "--sanitize-crypto-scramble", f"{self.partition}"])
                 click.echo("Successfully finished Security Erase!")
 
