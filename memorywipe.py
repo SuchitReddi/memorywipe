@@ -223,7 +223,7 @@ class Sanitization:
             except subprocess.CalledProcessError as e:
                 click.secho("Failed to create filesystem!", fg="red")
                 click.echo(e)
-                click.Abort()
+                raise click.Abort
 
             click.secho(f"Wiped {self.partition}\n", fg="green")
 
@@ -303,7 +303,7 @@ class Sanitization:
         click.echo("The time taken for this process to finish will be:")
         try:
             info = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
-            subprocess.run(["grep", "-i", '"erase unit"'], input=info.stdout, check=True)
+            subprocess.run(["grep", "-i", "erase unit"], input=info.stdout, check=True)
         except subprocess.CalledProcessError:
             click.secho("Couldn't get the partition information.\n", fg="yellow")
         self._pass_hdparm = click.prompt("Set a password", hide_input=True, confirmation_prompt=True)
@@ -317,12 +317,12 @@ class Sanitization:
     def _chk_compat_hdparm(self):
         try:
             info = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
-            subprocess.run(["grep", "-i", '"sanitize feature"'], input=info.stdout, check=True)
+            subprocess.run(["grep", "-i", "sanitize feature"], input=info.stdout, check=True)
             click.echo("Your device supports hdparm set!")
         except subprocess.CalledProcessError:
             click.secho("Your device does not support hdparm set!\n", fg="yellow")
-            click.Abort()
-
+            raise click.Abort
+        
     def _chk_freeze(self):
         hdparm_output = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"], text=True)
         if "frozen" not in hdparm_output:
@@ -335,8 +335,8 @@ class Sanitization:
             if suspend == "y":
                 subprocess.run(["sudo", "systemctl", "suspend"])
             else:
-                click.echo("You can't continue with this process without suspending...")
-                click.Abort()
+                click.secho("You can't continue with this process without suspending...", fg="red")
+                raise click.Abort
 
     def _chk_sanitize_status(self):
         hdparm_output = subprocess.check_output(["sudo", "hdparm", "--sanitize-status", f"{self.partition}"], text=True)
@@ -406,7 +406,7 @@ class Sanitization:
         _install_tool("hdparm")
         try:
             hdparm_output = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"], text=True)
-            subprocess.check_output(["grep", "-i", '"sanitize feature"'], input=hdparm_output, text=True)
+            subprocess.check_output(["grep", "-i", "sanitize feature"], input=hdparm_output, text=True)
             # if "sanitize feature" in hdparm_output:
             click.echo(f"ATA Secure Erase is compatible for {self.partition}!\n")
             self.ata_hdparm()
