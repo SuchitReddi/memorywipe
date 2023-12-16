@@ -1,3 +1,5 @@
+<center><img src="logo.jpeg" alt="Memory wipe logo - Neuralizer MIB" width="250"></center>
+
 <b>This README is for users, not developers! Developers should check CONTRIBUTING.md, and DEVELOPMENT.md.</b>  
 You can find the report and presentation of this project in "docs" folder.
 # Memory Wipe
