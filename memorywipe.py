@@ -533,7 +533,7 @@ def validate_extract(ctx, param, value):
                 """)
 def extract(partition, bytesize):
     """Extraction command"""
-    loc = click.prompt("Enter output location for the bin file (/path/to/your/image.bin)")
+    loc = click.prompt("Enter output location for the extracted image", default="./image.bin")
     loc = os.path.expandvars(loc)  # To handle input with $ symbols like $HOME, $PATH, etc.
     loc = os.path.expanduser(loc)  # To handle input with "~" or "~user" in input prompt
     try:
@@ -569,7 +569,23 @@ def main():
     Main commands:\n
     1) sanitize: Sanitization (Wiping)\n
     2) extract: Extraction (Imaging)\n
-    3) verify: Verification (External process)
+    3) verify: Verification (External process)\n
+    
+    Options:\n
+    Sanitize options:\n
+    -m, --method\n
+    Select method number to directly run a specific sanitization method.
+    
+    Extract options:\n
+    -p, --partition\n
+    Sets partition beforehand for extraction\n
+    -b, --bytesize\n
+    Sets bytesize value\n
+    
+    Example:\n
+    python3 memorywipe.py sanitize -m 1 (selects automatic wipe method)\n
+    python3 memorywipe.py extract -p /dev/sdb6 (extracts /dev/sdb6)\n
+    python3 memorywipe.py extract -p /dev/sda -b 1M (extracts /dev/sda with a block size of 1M)
     """
     pass
 
