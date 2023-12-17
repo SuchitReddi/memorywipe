@@ -17,6 +17,7 @@ This tool can be used on any linux device. But it was mostly tested on a Raspber
 <ol>
   <li>Clone the repository: <code>git clone https://github.com/suchitreddi/memorywipe.git</code></li>
   <li>Run the script: <code>bash memorywipe.sh</code></li>
+  <li>To run the python version: <code>python3 memorywipe.py --help</code></li>
 </ol>
 
 ## Forensic Issues of IoT devices using NAND Flash Memory (Research)
