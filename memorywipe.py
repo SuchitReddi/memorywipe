@@ -278,12 +278,12 @@ class Sanitization:
             return True
 
         click.echo("Installing VeraCrypt...")
-        veracrypt_url = "https://launchpad.net/veracrypt/trunk/1.26.7/+download/veracrypt-console-1.26.7-Debian-11-armhf.deb"
+        veracrypt_url = "https://launchpad.net/veracrypt/trunk/1.26.7/+download/veracrypt-console-1.26.7-Debian-11-amd64.deb"
         subprocess.run(["sudo", "wget", veracrypt_url, "--connect-timeout=5", "-c", "-P", "./veracrypt"],
                        stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL)
         subprocess.run([
-            "sudo", "apt", "install", "./veracrypt/veracrypt-console-1.26.7-Debian-11-armhf.deb", "-y"],
+            "sudo", "apt", "install", "./veracrypt/veracrypt-console-1.26.7-Debian-11-amd64.deb", "-y"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL)
         click.echo("Checking for successful installation...")
@@ -291,11 +291,11 @@ class Sanitization:
             click.secho("Check complete. Installed successfully!", fg="bright_green")
             return True
         click.secho("Veracrypt installation failed!! Installation manually.\n", fg="bright_red")
+        click.secho(
+            "NOTE: If it did not work for you, change the version and architecture according to your device and os..", fg="yellow")
+        click.echo("For example, raspberry pi uses armhf architecture. So, amd64 will be changed to armhf, making the installation command:")
         click.echo(
-            "NOTE: If it did not work for you, change the version and architecture according to your device and os..")
-        click.echo("For example, raspberry pi uses armhf architecture. So, the change amd64 to armhf command is:")
-        click.echo(
-            "sudo wget https://launchpad.net/veracrypt/trunk/1.26.7/+download/veracrypt-console-1.26.7-Debian-11-amd64.deb --connect-timeout=5 -c -P ./veracrypt && sudo apt install ./veracrypt/veracrypt-console-1.26.7-Debian-11-amd64.deb -y")
+            "sudo wget https://launchpad.net/veracrypt/trunk/1.26.7/+download/veracrypt-console-1.26.7-Debian-11-armhf.deb --connect-timeout=5 -c -P ./veracrypt && sudo apt install ./veracrypt/veracrypt-console-1.26.7-Debian-11-armhf.deb -y")
         return False
 
     def ata_hdparm(self):
@@ -320,7 +320,7 @@ class Sanitization:
             click.secho("Couldn't get time taken info.\n", fg="yellow")
 
         self._pass_hdparm = click.prompt("Set a password", hide_input=True, confirmation_prompt=False)
-        # subprocess.run(["sudo" "hdparm" "--user-master" "u" "--security-set-pass" f"{self._pass_hdparm}" f"{self.partition}"])
+        subprocess.run(["sudo" "hdparm" "--user-master" "u" "--security-set-pass" f"{self._pass_hdparm}" f"{self.partition}"])
         click.echo("Password set!\n")
         self._select_enhance()
         click.secho("\nATA Secure Erase procedure successfully completed!", fg="bright_green")
@@ -377,7 +377,7 @@ class Sanitization:
                 click.echo("Please wait... this may take a long time. At-least:")
                 hdparm = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"])
                 subprocess.run(["grep", "-i", "erase unit"], input=hdparm)
-                # subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase-enhanced", f"{self._pass_hdparm}", f"{self.partition}"])
+                subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase-enhanced", f"{self._pass_hdparm}", f"{self.partition}"])
                 click.echo("Successfully finished Enhanced Security Erase!")
             case 2:
                 click.secho("You selected Security Erase", fg="magenta")
@@ -385,7 +385,7 @@ class Sanitization:
                 click.echo("Please wait... this may take a long time. At-least:")
                 hdparm = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"])
                 subprocess.run(["grep", "-i", "erase unit"], input=hdparm)
-                # subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase", f"{self._pass_hdparm}", f"{self.partition}"])
+                subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase", f"{self._pass_hdparm}", f"{self.partition}"])
                 click.echo("Successfully finished Security Erase!")
             case 3:
                 click.secho("You selected Block Erase", fg="magenta")
@@ -397,7 +397,7 @@ class Sanitization:
                 click.echo("Please wait... this may take a long time. At-least:")
                 hdparm = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"])
                 subprocess.run(["grep", "-i", "erase unit"], input=hdparm)
-                # subprocess.run(["sudo", "hdparm", "--sanitize-block-erase", f"{self.partition}"])
+                subprocess.run(["sudo", "hdparm", "--sanitize-block-erase", f"{self.partition}"])
                 click.echo("Successfully finished Block Erase!")
             case 4:
                 click.secho("You selected Crypto Scramble Erase", fg="magenta")
@@ -408,7 +408,7 @@ class Sanitization:
                 click.echo("Please wait... this may take a long time. At-least:")
                 hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
                 subprocess.run(["grep", "-i", "erase unit"], input=hdparm.stdout)
-                # subprocess.run(["sudo", "hdparm", "--sanitize-crypto-scramble", f"{self.partition}"])
+                subprocess.run(["sudo", "hdparm", "--sanitize-crypto-scramble", f"{self.partition}"])
                 click.echo("Successfully finished Security Erase!")
 
     def auto_wipe(self):
