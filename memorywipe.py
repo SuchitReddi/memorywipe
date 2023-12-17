@@ -26,7 +26,7 @@ def prompt_disk_partition():
             subprocess.run(["df", "-hT"])
 
     click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
-    return click.prompt("Enter your device's partition", default="/dev/sda1")
+    return click.prompt("Enter your device's partition", default="/dev/sda")
 
 
 def validate_partition(path):
@@ -163,7 +163,7 @@ class Sanitization:
             6: "ntfs"
         }
         self.filesystem = filesystem_dict[
-            click.prompt("Select", default=2, type=click.IntRange(1, 6), show_choices=False)]
+            click.prompt("Select", default=6, type=click.IntRange(1, 6), show_choices=False)]
         click.echo("\nEnter strong password for encrypting. (You don't have to remember it)")
         strongp = click.prompt("So set a random password with special characters", hide_input=True,
                                confirmation_prompt=False)
@@ -177,7 +177,7 @@ class Sanitization:
             click.echo("Selected partition is already encrypted! Skipping encryption...\n")
         else:
             q2 = click.prompt("Do you want to encrypt manually or automatically?", type=click.Choice(["m", "a"]),
-                              show_choices=True, default="a")
+                              show_choices=True, default='a')
             click.secho(
                 "Executing VeraCrypt volume creation command...\nPlease wait. This might take a long time for larger storages...",
                 fg="bright_magenta")
@@ -312,7 +312,6 @@ class Sanitization:
 
         self._chk_compat_hdparm()
         self._chk_freeze()
-        self._chk_freeze()
         click.echo("The time taken for this process to finish will be:")
         try:
             info = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
@@ -342,8 +341,8 @@ class Sanitization:
         if "not	frozen" in hdparm_output:
             click.echo("Device is not frozen! Continuing to next step...")
         else:
-            click.secho("Device is frozen!", fg="yellow")
-            click.echo("A system suspend will suspend the device and start it after a minute unfrozen")
+            click.secho("Device is frozen! A system suspend or reboot should unfreeze it.", fg="yellow")
+            click.echo("A system suspend will suspend the device. You can press any key and start it after a minute")
             click.secho("YOUR DEVICE WILL TURN OFF FOR A FEW MINUTES IF YOU SELECT YES. DO NOT PANIC\n")
             suspend = click.prompt("Do you want to suspend your system?", type=click.Choice(["y", "n"]), default='n')
             if suspend == "y":
@@ -462,14 +461,14 @@ def validate_sanitize(ctx, param, value):
     if not value or ctx.resilient_parsing:
         click.secho("You selected wiping...", fg="magenta")
         click.echo("""
-            Available Methods: [Default: 5]
-            [1] Cryptographic Wipe
-            [2] ATA Secure Erase (hdparm)
-            [3] SATA Secure Erase (sg-utils)
-            [4] NVMe Secure Erase (nvme-cli)
-            [5] Automatic wipe (Executes the best compatible method)
+            Available Methods: [Default: 1]
+            [1] Automatic wipe (Executes the best compatible method)
+            [2] Cryptographic Wipe
+            [3] ATA Secure Erase (hdparm)
+            [4] SATA Secure Erase (sg-utils)
+            [5] NVMe Secure Erase (nvme-cli)
             """)
-        value = click.prompt("Select the wiping method", type=int)
+        value = click.prompt("Select the wiping method", type=int, default=1)
         try:
             assert value in range(1, 6)
             return value
@@ -485,12 +484,12 @@ def validate_sanitize(ctx, param, value):
     callback=validate_sanitize,
     is_eager=False,
     help="""
-    Available Methods: [Default: 5]\n
-    [1] Cryptographic Wipe\n
-    [2] ATA Secure Erase (hdparm)\n
-    [3] SATA Secure Erase (sg-utils)\n
-    [4] NVMe Secure Erase (nvme-cli)\n
-    [5] Automatic wipe (Executes the best compatible method)\n
+    Available Methods: [Default: 1]\n
+    [1] Automatic wipe (Executes the best compatible method)\n
+    [2] Cryptographic Wipe\n
+    [3] ATA Secure Erase (hdparm)\n
+    [4] SATA Secure Erase (sg-utils)\n
+    [5] NVMe Secure Erase (nvme-cli)\n
     """
 )
 def sanitize(method):
@@ -498,13 +497,15 @@ def sanitize(method):
     wipe = Sanitization(method)
     match method:
         case 1:
-            wipe.crypt_wipe()
-        case 2:
-            wipe.ata_hdparm()
-        case 3 | 4:
-            click.echo("No NVMe devices are available for testing. Will be added soon...")
-        case 5:
             wipe.auto_wipe()
+        case 2:
+            wipe.crypt_wipe()
+        case 3:
+            wipe.ata_hdparm()
+        case 4:
+            click.echo("No SATA devices are available for testing. Will be added soon...")
+        case 5:
+            click.echo("No NVMe devices are available for testing. Will be added soon...")
         case _:
             click.echo("Wrong input value")
 
