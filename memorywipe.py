@@ -8,7 +8,7 @@ def check_install(app):
     return swhich(app) is not None
 
 
-def list_partitions():
+def prompt_disk_partition():
     valid_input = False
     q1 = click.prompt("Do you want to see all the partitions?", type=click.Choice(["y", "n"]), default="n")
     if q1 == "y":
@@ -24,6 +24,9 @@ def list_partitions():
         except subprocess.CalledProcessError:
             # If 'lsblk' is not installed, use 'df -hT' as a fallback
             subprocess.run(["df", "-hT"])
+
+    click.echo("\nIf you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
+    return click.prompt("Enter your device's partition", default="/dev/sda1")
 
 
 def validate_partition(path):
@@ -75,9 +78,7 @@ class Sanitization:
         click.secho(
             "If there are multiple partitions in the device, format them into one single partition, and then wipe it.",
             fg="blue")
-        list_partitions()
-        click.echo("\nIf you want to wipe the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
-        self.partition = click.prompt("Enter your device's partition", default="/dev/sda")
+        self.partition = prompt_disk_partition()
         if not validate_partition(self.partition):
             raise click.Abort
         if not self._check_mount():
@@ -177,7 +178,9 @@ class Sanitization:
         else:
             q2 = click.prompt("Do you want to encrypt manually or automatically?", type=click.Choice(["m", "a"]),
                               show_choices=True, default="a")
-            click.secho("Executing VeraCrypt volume creation command...\nPlease wait. This might take a long time for larger storages...", fg="bright_magenta")
+            click.secho(
+                "Executing VeraCrypt volume creation command...\nPlease wait. This might take a long time for larger storages...",
+                fg="bright_magenta")
             if q2 == "m":
                 click.echo("Starting veracrypt manually...\n")
                 self._veracrypt_interactive()
@@ -192,7 +195,7 @@ class Sanitization:
                                 f"{self.partition}", "--encryption=aes", "--hash=sha-512",
                                 "--filesystem=ntfs", "-p", f"{strongp}", "--pim=0",
                                 "-k", "", "--random-source=/dev/urandom"])
-                
+
             click.echo("Finishing up...")
             click.secho(f"Finished encrypting {self.partition}\n", fg="green")
 
@@ -202,7 +205,9 @@ class Sanitization:
             click.secho("Make sure the disk is unmounted!", fg="red")
             raise click.Abort
         else:
-            click.secho("Executing dd command and writing random values to partition....\nPlease be patient. This make take longer time for larger partitions.", fg="bright_magenta")
+            click.secho(
+                "Executing dd command and writing random values to partition....\nPlease be patient. This make take longer time for larger partitions.",
+                fg="bright_magenta")
             subprocess.run(["sudo", "dd", "if=/dev/random", f"of={self.partition}", "bs=1M", "status=progress"])
             click.secho("Executing dd command and writing zeros to partition...", fg="bright_magenta")
             subprocess.run(["sudo", "dd", "if=/dev/zero", f"of={self.partition}", "bs=1M", "status=progress"])
@@ -211,8 +216,9 @@ class Sanitization:
                         fg="bright_white")
             self.name = click.prompt("Set device name")
             try:
-                click.secho(f"Creating '{self.filesystem}' filesystem on partition: '{self.partition}' with label '{self.name}'...",
-                            fg="bright_magenta")
+                click.secho(
+                    f"Creating '{self.filesystem}' filesystem on partition: '{self.partition}' with label '{self.name}'...",
+                    fg="bright_magenta")
                 if self.partition == "fat":
                     subprocess.run(
                         ["sudo", f"mkfs.{self.filesystem}", "-n", f"{self.name}", "-F", "32", f"{self.partition}"],
@@ -230,10 +236,18 @@ class Sanitization:
     def _mount_disk(self):
         # read -p "Set mounting folder name: " name
         click.echo(f"Mounting {self.partition} at /media/{self.name}")
-        subprocess.run(["sudo", "mkdir", f"/media/{self.name}"])
+        try:
+            subprocess.run(["sudo", "mkdir", f"/media/{self.name}"])
+        except subprocess.CalledProcessError:
+            click.secho(f"{self.name} directory already exists! Skipping...", fg="yellow")
 
-        subprocess.run(["sudo", "mount", f"{self.partition}", f"/media/{self.name}/"])
-        click.secho("Finished mounting!\n", fg="green")
+        try:
+            subprocess.run(["sudo", "mount", f"{self.partition}", f"/media/{self.name}/"], check=True)
+            click.secho("Finished mounting!\n", fg="green")
+        except subprocess.CalledProcessError:
+            click.secho(f"Failed to mount {self.partition} on {self.name}. Please mount manually!", fg="red")
+            click.echo("The command to mount the partition:\nsudo mount <partition> /media/<directory_name>/")
+
         del self.name
 
     def _check_mount(self):
@@ -292,9 +306,7 @@ class Sanitization:
         except AssertionError:
             raise click.Abort
 
-        list_partitions()
-        click.echo("\nIf you want to wipe the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
-        self.partition = click.prompt("Enter your device's partition", default="/dev/sda")
+        self.partition = prompt_disk_partition()
         if not validate_partition(self.partition):
             raise click.Abort
 
@@ -307,6 +319,7 @@ class Sanitization:
             subprocess.run(["grep", "-i", "erase unit"], input=info.stdout, check=True)
         except subprocess.CalledProcessError:
             click.secho("Couldn't get time taken info.\n", fg="yellow")
+
         self._pass_hdparm = click.prompt("Set a password", hide_input=True, confirmation_prompt=False)
         # subprocess.run(["sudo" "hdparm" "--user-master" "u" "--security-set-pass" f"{self._pass_hdparm}" f"{self.partition}"])
         click.echo("Password set!\n")
@@ -317,13 +330,13 @@ class Sanitization:
 
     def _chk_compat_hdparm(self):
         try:
-            info = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
-            subprocess.run(["grep", "-i", "sanitize feature"], input=info.stdout, check=True)
+            info = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"])
+            subprocess.run(["grep", "-i", "sanitize feature"], input=info, check=True)
             click.echo("Your device supports hdparm set!")
         except subprocess.CalledProcessError:
             click.secho("Your device does not support hdparm set!\n", fg="yellow")
             raise click.Abort
-        
+
     def _chk_freeze(self):
         hdparm_output = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"], text=True)
         if "not	frozen" in hdparm_output:
@@ -335,8 +348,9 @@ class Sanitization:
             suspend = click.prompt("Do you want to suspend your system?", type=click.Choice(["y", "n"]), default='n')
             if suspend == "y":
                 subprocess.run(["sudo", "systemctl", "suspend"])
+                self._chk_freeze()
             else:
-                click.secho("You can't continue with this process without suspending...", fg="red")
+                click.secho("You can't continue with this process without suspending...\nStart again.", fg="red")
                 raise click.Abort
 
     def _chk_sanitize_status(self):
@@ -362,16 +376,16 @@ class Sanitization:
                 click.echo(
                     "This mode writes predetermined data patterns set by the manufacturer to all areas including bad blocks")
                 click.echo("Please wait... this may take a long time. At-least:")
-                hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
-                subprocess.run(["grep", "-i", "erase unit"], input=hdparm.stdout)
+                hdparm = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"])
+                subprocess.run(["grep", "-i", "erase unit"], input=hdparm)
                 # subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase-enhanced", f"{self._pass_hdparm}", f"{self.partition}"])
                 click.echo("Successfully finished Enhanced Security Erase!")
             case 2:
                 click.secho("You selected Security Erase", fg="magenta")
                 click.echo("This mode writes all user data excluding bad blocks with zeroes")
                 click.echo("Please wait... this may take a long time. At-least:")
-                hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
-                subprocess.run(["grep", "-i", "erase unit"], input=hdparm.stdout)
+                hdparm = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"])
+                subprocess.run(["grep", "-i", "erase unit"], input=hdparm)
                 # subprocess.run(["sudo", "hdparm", "--user-master", "u", "--security-erase", f"{self._pass_hdparm}", f"{self.partition}"])
                 click.echo("Successfully finished Security Erase!")
             case 3:
@@ -382,8 +396,8 @@ class Sanitization:
                 click.echo("Checking compatibility...\n")
                 self._chk_sanitize_status()
                 click.echo("Please wait... this may take a long time. At-least:")
-                hdparm = subprocess.run(["sudo", "hdparm", "-I", f"{self.partition}"], capture_output=True)
-                subprocess.run(["grep", "-i", "erase unit"], input=hdparm.stdout)
+                hdparm = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"])
+                subprocess.run(["grep", "-i", "erase unit"], input=hdparm)
                 # subprocess.run(["sudo", "hdparm", "--sanitize-block-erase", f"{self.partition}"])
                 click.echo("Successfully finished Block Erase!")
             case 4:
@@ -400,18 +414,16 @@ class Sanitization:
 
     def auto_wipe(self):
         click.secho("You selected Automatic Wipe...", fg="magenta")
-        click.echo("This method checks each method for its compatibility and executes the best method")
-        list_partitions()
-        click.echo("\nIf you want to wipe the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
-        self.partition = click.prompt("Enter your device's partition", default="/dev/sda")
+        click.echo("This method checks each method for its compatibility and executes the best method.")
+        self.partition = prompt_disk_partition()
         if not validate_partition(self.partition):
             raise click.Abort
 
         click.echo("Trying ATA Secure Erase...")
         _install_tool("hdparm")
         try:
-            hdparm_output = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"], text=True)
-            subprocess.check_output(["grep", "-i", "sanitize feature"], input=hdparm_output, text=True)
+            hdparm_output = subprocess.check_output(["sudo", "hdparm", "-I", f"{self.partition}"])
+            subprocess.run(["grep", "-i", "sanitize feature"], input=hdparm_output, check=True)
             # if "sanitize feature" in hdparm_output:
             click.echo(f"ATA Secure Erase is compatible for {self.partition}!\n")
             self.ata_hdparm()
@@ -422,9 +434,8 @@ class Sanitization:
 
         _install_tool("sg3-utils")
         try:
-            sg_output = subprocess.check_output(["sudo", "sg_sanitize", "-CzQ", f"{self.partition}"], text=True,
-                                                encoding="latin-1")
-            subprocess.check_output(["grep", "-i", 'fail'], input=sg_output, text=True)
+            sg_output = subprocess.check_output(["sudo", "sg_sanitize", "-CzQ", f"{self.partition}"])
+            subprocess.run(["grep", "-i", "fail"], input=sg_output, check=True)
             # if "fail" in sg_output:
             click.echo(f"SATA Secure Erase is compatible for {self.partition}!")
             return
@@ -435,8 +446,8 @@ class Sanitization:
 
         _install_tool("nvme-cli")
         try:
-            nvme_output = subprocess.check_output(["sudo", "nvme", "id-ctrl", f"{self.partition}", "-H"], text=True)
-            subprocess.check_output([" grep", "-i", 'invalid'], input=nvme_output, text=True)
+            nvme_output = subprocess.check_output(["sudo", "nvme", "id-ctrl", f"{self.partition}", "-H"])
+            subprocess.run(["grep", "-i", "invalid"], input=nvme_output, check=True)
             click.echo(f"NVMe Secure Erase is compatible for {self.partition}!\n")
             return
         except subprocess.CalledProcessError:
@@ -468,7 +479,20 @@ def validate_sanitize(ctx, param, value):
 
 
 @click.command()
-@click.option("--method", "-m", type=click.IntRange(1, 6), callback=validate_sanitize, is_eager=False)
+@click.option(
+    "--method", "-m",
+    type=click.IntRange(1, 6),
+    callback=validate_sanitize,
+    is_eager=False,
+    help="""
+    Available Methods: [Default: 5]\n
+    [1] Cryptographic Wipe\n
+    [2] ATA Secure Erase (hdparm)\n
+    [3] SATA Secure Erase (sg-utils)\n
+    [4] NVMe Secure Erase (nvme-cli)\n
+    [5] Automatic wipe (Executes the best compatible method)\n
+    """
+)
 def sanitize(method):
     """Sanitization command"""
     wipe = Sanitization(method)
@@ -489,9 +513,7 @@ def validate_extract(ctx, param, value):
     if not value or ctx.resilient_parsing:
         click.secho("You selected imaging...", fg="magenta")
         click.echo("Select a partition to extract:-")
-        list_partitions()
-        click.echo("If you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda")
-        value = click.prompt("Enter your device's partition", default="/dev/sda")
+        value = prompt_disk_partition()
         valid_partition = validate_partition(value)
         if valid_partition:
             return valid_partition
@@ -504,15 +526,24 @@ def validate_extract(ctx, param, value):
               callback=validate_extract, is_eager=False)
 @click.option("--bytesize", "-b", default="1M", help="""
                 N and BYTES may be followed by the following multiplicative suffixes:
-                c =1, w =2, b =512, kB =1000, K =1024, MB =1000*1000, M =1024*1024, xM =M,
-                GB =1000*1000*1000, G =1024*1024*1024, and so on for T, P, E, Z, Y.
+                c=1, w=2, b=512, kB=1000, K=1024, MB=1000*1000, M=1024*1024, xM=M,
+                GB=1000*1000*1000, G=1024*1024*1024, and so on for T, P, E, Z, Y.
+                Binary prefixes can be used, too: KiB=K, MiB=M, and so on.
                 """)
 def extract(partition, bytesize):
     """Extraction command"""
     loc = click.prompt("Enter output location for the bin file (/path/to/your/image.bin)")
     loc = os.path.expandvars(loc)  # To handle input with $ symbols like $HOME, $PATH, etc.
     loc = os.path.expanduser(loc)  # To handle input with "~" or "~user" in input prompt
-    subprocess.run(["sudo", "dd", f"if={partition}", f"of={loc}", f"bs={bytesize}", "status=progress"])
+    try:
+        subprocess.run(
+            ["sudo", "dd", f"if={partition}", f"of={loc}", f"bs={bytesize}", "status=progress"],
+            check=True
+        )
+        click.echo(f"Image of {partition} extracted to {loc} successfully!")
+    except subprocess.CalledProcessError:
+        click.secho("Failed to extract partition!", fg="red")
+        raise click.Abort
 
 
 @click.command()
