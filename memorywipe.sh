@@ -446,6 +446,17 @@ ins_nanddump() {
   #echo
 }
 
+# Extraction - Imaging starts here
+extract() {
+
+  # Get the directory of memorywipe.sh
+  dir=$(dirname "$0")
+  # Change permissions of backupie.sh
+  #sudo chmod +x "$dir/backupie.sh"
+  
+  bash "$dir/backupie.sh"
+}
+
 main() {
   
   echo
@@ -546,7 +557,7 @@ main() {
 	  
 	  crypt_wipe
 	  echo
-      main
+    main
       ;;
     *)
 	  echo "Invalid option! Select from 1, 2, 3, 4, 5. Starting again..."
@@ -558,23 +569,8 @@ main() {
   2)
     echo "You selected Extraction"
     # Code for option 2
-    echo "Select a partition to extract"
-    list_partitions
-	echo "If you want to extract the whole drive, partitioned as sda1, sda2, ..., sdaN; select /dev/sda"
-	read -p "Enter your device's partition (/dev/sda): " partition
-	if grep -qs "$partition" /proc/mounts; then
-		echo
-	else
-		echo
-		echo "Your partition does not exist. Enter correct partition. Starting again..."
-		echo
-		return 1
-	fi
-	read -p "Enter ouput location for the bin file (/<your location>/image.bin) :" loc
-	sudo dd if=$partition of=$loc bs=1M status=progress
-	echo "Image of $partition extracted to $loc successfully"
-	echo
-	main
+    extract
+	  main
     #ins_nanddump
     ;;
   3)
