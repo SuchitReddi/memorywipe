@@ -458,6 +458,8 @@ extract() {
 }
 
 main() {
+  echo
+  echo "----- Python version available. Run "python3 memorywipe.py" -----"
   
   echo
   echo "Available actions: "
