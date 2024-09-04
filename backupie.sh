@@ -2,7 +2,7 @@
 
 # Declaring the variables
 dev_path="/dev/mmcblk0"
-back_path="/media/sherl0ck/T7/rpi/backups/"
+back_path="/media/sherl0ck/dead/backups/"
 backup_name="backup-$(date +%Y%m%d-%H%M%S).img"
 
 set_dev_path() {
@@ -12,9 +12,10 @@ set_dev_path() {
      echo
      echo "If you are running backup, give path of device you want to backup"
      echo "If you are running restore, select device to write the backup image onto"
+     echo "WARNING: If you are restoring, make sure you do it from some other device, and not this Pi"
      echo
 
-     read -p "Enter your device path: " dev_path
+     read -p "Enter your device path(/dev/mmcblk0)): " dev_path
 }
 
 set_back_path() {
@@ -26,7 +27,7 @@ set_back_path() {
      echo "If you are running restore, give location of backup image"
      echo
 
-     read -p "Enter your backup path: " back_path
+     read -p "Enter your backup path(/media/sherl0ck/dead/backups): " back_path
 }
 
 # Function for backup
