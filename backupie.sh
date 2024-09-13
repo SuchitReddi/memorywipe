@@ -27,7 +27,7 @@ set_back_path() {
      echo "If you are running restore, give location of backup image"
      echo
 
-     read -p "Enter your backup path(/media/sherl0ck/dead/backups): " back_path
+     read -p "Enter your backup path(/media/sherl0ck/dead/backups/): " back_path
 }
 
 # Function for backup
